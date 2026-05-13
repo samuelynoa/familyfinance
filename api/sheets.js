@@ -1,7 +1,7 @@
-// api/sheets.js  — Vercel Serverless Function
+// api/sheets.js  — Vercel Serverless Function (CommonJS)
 // Runs on the server; service account credentials never reach the browser.
 
-import { google } from 'googleapis'
+const { google } = require('googleapis')
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
@@ -41,7 +41,7 @@ function objToRow(cols, obj) {
   return cols.map(c => obj[c] ?? '')
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // CORS for local dev
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
