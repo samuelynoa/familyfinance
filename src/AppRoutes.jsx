@@ -1,0 +1,46 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import AppLayout from '../components/layout/AppLayout'
+import Login from '../pages/Login'
+import ResetPassword from '../pages/ResetPassword'
+import Dashboard from '../pages/Dashboard'
+import Usuarios from '../pages/Usuarios'
+import { Cuentas, GastosLista, NuevoGasto, Reportes, Config } from '../pages/Placeholders'
+
+function RequireAuth({ children }) {
+  const { firebaseUser, loading } = useAuth()
+  if (loading) return <div className="spinner-center"><div className="spinner" /></div>
+  if (!firebaseUser) return <Navigate to="/login" replace />
+  return children
+}
+
+function PublicOnly({ children }) {
+  const { firebaseUser, loading } = useAuth()
+  if (loading) return <div className="spinner-center"><div className="spinner" /></div>
+  if (firebaseUser) return <Navigate to="/" replace />
+  return children
+}
+
+export default function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public */}
+      <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
+      <Route path="/reset-password" element={<PublicOnly><ResetPassword /></PublicOnly>} />
+
+      {/* Protected */}
+      <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
+        <Route index element={<Dashboard />} />
+        <Route path="cuentas"      element={<Cuentas />} />
+        <Route path="gastos"       element={<GastosLista />} />
+        <Route path="gastos/nuevo" element={<NuevoGasto />} />
+        <Route path="reportes"     element={<Reportes />} />
+        <Route path="config"       element={<Config />} />
+        <Route path="config/usuarios" element={<Usuarios />} />
+      </Route>
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
