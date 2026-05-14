@@ -2,6 +2,5 @@ node_modules
 dist
 .env
 .env.local
-*.json.key
 service-account*.json
 .DS_Store
