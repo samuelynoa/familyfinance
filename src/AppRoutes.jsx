@@ -5,7 +5,11 @@ import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import Usuarios from './pages/Usuarios'
-import { Cuentas, GastosLista, NuevoGasto, Reportes, Config } from './pages/Placeholders'
+import Cuentas from './pages/Cuentas'
+import Tarjetas from './pages/Tarjetas'
+import NuevoGasto from './pages/NuevoGasto'
+import GastosLista from './pages/GastosLista'
+import { Reportes, Config } from './pages/Placeholders'
 
 function RequireAuth({ children }) {
   const { firebaseUser, loading } = useAuth()
@@ -24,17 +28,20 @@ function PublicOnly({ children }) {
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
+      <Route path="/login"          element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/reset-password" element={<PublicOnly><ResetPassword /></PublicOnly>} />
+
       <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
-        <Route index element={<Dashboard />} />
-        <Route path="cuentas" element={<Cuentas />} />
-        <Route path="gastos" element={<GastosLista />} />
-        <Route path="gastos/nuevo" element={<NuevoGasto />} />
-        <Route path="reportes" element={<Reportes />} />
-        <Route path="config" element={<Config />} />
-        <Route path="config/usuarios" element={<Usuarios />} />
+        <Route index                    element={<Dashboard />} />
+        <Route path="cuentas"           element={<Cuentas />} />
+        <Route path="cuentas/tarjetas"  element={<Tarjetas />} />
+        <Route path="gastos"            element={<GastosLista />} />
+        <Route path="gastos/nuevo"      element={<NuevoGasto />} />
+        <Route path="reportes"          element={<Reportes />} />
+        <Route path="config"            element={<Config />} />
+        <Route path="config/usuarios"   element={<Usuarios />} />
       </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
