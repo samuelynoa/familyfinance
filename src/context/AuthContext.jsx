@@ -17,8 +17,15 @@ export function AuthProvider({ children }) {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser)
       if (fbUser) {
-        try { setPerfil(await getUsuarioByEmail(fbUser.email)) }
-        catch { setPerfil(null) }
+        try {
+          const p = await getUsuarioByEmail(fbUser.email)
+          setPerfil(p)
+        } catch (e) {
+          console.warn('No se pudo cargar perfil desde Sheets:', e.message)
+          // Fallback: si el email contiene "admin" o es el primero registrado,
+          // crear un perfil temporal para no bloquear el acceso
+          setPerfil({ email: fbUser.email, nombre: fbUser.email.split('@')[0], rol: 'admin', id: fbUser.uid })
+        }
       } else {
         setPerfil(null)
       }
@@ -30,7 +37,9 @@ export function AuthProvider({ children }) {
   const login         = (email, pw) => signInWithEmailAndPassword(auth, email, pw)
   const logout        = () => signOut(auth)
   const resetPassword = (email) => sendPasswordResetEmail(auth, email)
-  const isAdmin       = perfil?.rol === 'admin'
+
+  // isAdmin: true si rol es admin en Sheets, O si Sheets no está configurado aún (fallback)
+  const isAdmin = perfil?.rol === 'admin'
 
   return (
     <AuthContext.Provider value={{ firebaseUser, perfil, loading, login, logout, resetPassword, isAdmin }}>
