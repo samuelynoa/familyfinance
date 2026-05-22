@@ -110,14 +110,14 @@ export default function NuevoGasto() {
     setError('')
 
     try {
-      setOcrStatus('📷 Leyendo la imagen...')
-      await new Promise(r => setTimeout(r, 300)) // pequeño delay para mostrar UI
+      setOcrStatus('📷 Preparando imagen...')
+      // Tesseract da progreso real
 
-      setOcrStatus('🔍 Extrayendo texto con Google Vision...')
-      const resultado = await processReceiptImage(file, comercios)
+      // progreso via callback
+      const resultado = await processReceiptImage(file, comercios, setOcrStatus)
 
-      setOcrStatus('🤖 Clasificando con IA...')
-      await new Promise(r => setTimeout(r, 200))
+      // clasificando...
+      // sin delay
 
       // Llenar el formulario con los datos extraídos
       setSugerencia(resultado)

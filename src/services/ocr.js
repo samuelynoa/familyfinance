@@ -1,21 +1,11 @@
 // src/services/ocr.js
-// Maneja captura de imagen, llamada a OCR y clasificación IA
+// OCR local sin APIs externas usando Tesseract.js (gratis, corre en el navegador)
+// + clasificador local sin Claude
+
+import { clasificarGasto } from './classifier'
 
 /**
- * Convierte un File/Blob a base64
- */
-export function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload  = () => resolve(reader.result.split(',')[1]) // solo la parte base64
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
-/**
- * Comprime una imagen antes de enviarla a Vision API
- * Reduce costos y mejora velocidad
+ * Comprime imagen antes de procesarla
  */
 export function compressImage(file, maxWidth = 1200, quality = 0.85) {
   return new Promise((resolve) => {
@@ -23,15 +13,10 @@ export function compressImage(file, maxWidth = 1200, quality = 0.85) {
     const ctx    = canvas.getContext('2d')
     const img    = new Image()
     const url    = URL.createObjectURL(file)
-
     img.onload = () => {
       let { width, height } = img
-      if (width > maxWidth) {
-        height = Math.round((height * maxWidth) / width)
-        width  = maxWidth
-      }
-      canvas.width  = width
-      canvas.height = height
+      if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth }
+      canvas.width = width; canvas.height = height
       ctx.drawImage(img, 0, 0, width, height)
       URL.revokeObjectURL(url)
       canvas.toBlob(resolve, 'image/jpeg', quality)
@@ -41,62 +26,79 @@ export function compressImage(file, maxWidth = 1200, quality = 0.85) {
 }
 
 /**
- * Envía imagen a Google Vision via /api/ocr
- * Devuelve { texto, confianza }
+ * Extrae texto de imagen usando Tesseract.js (OCR en el navegador, 100% gratis)
  */
-export async function extractTextFromImage(file) {
-  const compressed   = await compressImage(file)
-  const base64       = await fileToBase64(compressed)
-
-  const res = await fetch('/api/ocr', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg' }),
-  })
-
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.message || 'Error en OCR')
-  return data // { texto, confianza }
-}
-
-/**
- * Envía texto OCR a Claude via /api/classify
- * Devuelve { monto, moneda, comercio, fecha, categoria, confianza, items, razon }
- */
-export async function classifyExpense(textoOCR, comerciosAprendidos = []) {
-  const res = await fetch('/api/classify', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ textoOCR, comerciosAprendidos }),
-  })
-
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.message || 'Error en clasificación')
-  return data
-}
-
-/**
- * Pipeline completo: imagen → texto → clasificación
- * Devuelve resultado enriquecido con confianza combinada
- */
-export async function processReceiptImage(file, comerciosAprendidos = []) {
-  // Paso 1: OCR
-  const { texto, confianza: confianzaOCR } = await extractTextFromImage(file)
-  if (!texto || texto.trim().length < 5) {
-    throw new Error('No se pudo extraer texto de la imagen. Intenta con mejor iluminación.')
+async function extractTextTesseract(file, onProgress) {
+  // Carga Tesseract dinámicamente (no lo instalamos como dep, lo cargamos desde CDN)
+  if (!window.Tesseract) {
+    onProgress?.('Cargando motor OCR...')
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'
+      script.onload  = resolve
+      script.onerror = reject
+      document.head.appendChild(script)
+    })
   }
 
-  // Paso 2: Clasificación IA
-  const clasificacion = await classifyExpense(texto, comerciosAprendidos)
+  onProgress?.('Reconociendo texto...')
+  const compressed = await compressImage(file, 1400, 0.9)
+  const url        = URL.createObjectURL(compressed)
 
-  // Confianza combinada: promedio ponderado de OCR y IA
-  const confianzaFinal = (confianzaOCR * 0.3 + (clasificacion.confianza || 0.5) * 0.7)
+  try {
+    const result = await window.Tesseract.recognize(url, 'spa+eng', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          onProgress?.(`Reconociendo texto: ${Math.round(m.progress * 100)}%`)
+        }
+      },
+    })
+    URL.revokeObjectURL(url)
+    return {
+      texto:     result.data.text,
+      confianza: result.data.confidence / 100,
+    }
+  } catch (e) {
+    URL.revokeObjectURL(url)
+    throw e
+  }
+}
+
+/**
+ * Pipeline completo: imagen → OCR (Tesseract) → clasificación local
+ */
+export async function processReceiptImage(file, comerciosAprendidos = [], onProgress) {
+  // Paso 1: OCR con Tesseract.js
+  onProgress?.('📷 Preparando imagen...')
+  let texto = ''
+  let confianzaOCR = 0.5
+
+  try {
+    const ocrResult = await extractTextTesseract(file, onProgress)
+    texto       = ocrResult.texto
+    confianzaOCR = ocrResult.confianza
+  } catch (e) {
+    // Si Tesseract falla (sin conexión para cargar CDN), continuar con texto vacío
+    console.warn('Tesseract falló:', e.message)
+    texto = ''
+  }
+
+  onProgress?.('🤖 Clasificando gasto...')
+
+  // Paso 2: Clasificación local
+  const clasificacion = clasificarGasto(texto || '', comerciosAprendidos)
+
+  // Si no se extrajo texto, marcar como necesita confirmación
+  if (!texto || texto.trim().length < 5) {
+    clasificacion.confianza = 0.3
+    clasificacion.necesitaConfirmacion = true
+    clasificacion.razon = 'No se pudo extraer texto — por favor completa los datos manualmente'
+  }
 
   return {
     ...clasificacion,
-    textoOCR:      texto,
+    textoOCR:    texto,
     confianzaOCR,
-    confianza:     Math.round(confianzaFinal * 100) / 100,
-    necesitaConfirmacion: confianzaFinal < 0.75,
+    necesitaConfirmacion: clasificacion.confianza < 0.75,
   }
 }
