@@ -3,48 +3,61 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
 
   const email    = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
-  const key      = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || ''
-  const sheetsId = process.env.VITE_SHEETS_ID
-  const keyFixed = key.replace(/\\n/g, '\n')
+  const key      = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '').replace(/\\n/g, '\n')
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
   const { google } = require('googleapis')
 
-  const checks = {
-    email_presente:    !!email,
-    key_presente:      !!key,
-    sheetsId_presente: !!sheetsId,
-    sheetsId_valor:    sheetsId,
-    sheetsId_longitud: sheetsId?.length || 0,
-  }
-
-  let authTest = 'no intentado'
+  // Test Vision API con imagen mínima (1x1 pixel blanco en base64)
+  let visionTest = 'no intentado'
   try {
-    const auth = new google.auth.JWT(email, null, keyFixed, ['https://www.googleapis.com/auth/spreadsheets'])
-    await auth.authorize()
-    authTest = '✓ OK'
-  } catch (e) { authTest = '✗ ' + e.message }
+    const auth  = new google.auth.JWT(email, null, key, ['https://www.googleapis.com/auth/cloud-vision'])
+    const token = await auth.getAccessToken()
 
-  let sheetsTest = 'no intentado'
-  try {
-    const auth = new google.auth.JWT(email, null, keyFixed, ['https://www.googleapis.com/auth/spreadsheets'])
-    const sheets = google.sheets({ version: 'v4', auth })
-    const resp = await sheets.spreadsheets.get({ spreadsheetId: sheetsId })
-    const hojas = resp.data.sheets.map(s => s.properties.title)
-    sheetsTest = '✓ OK — Hojas: ' + hojas.join(', ')
-  } catch (e) { sheetsTest = '✗ ' + e.message }
-
-  let appendTest = 'no intentado'
-  try {
-    const auth = new google.auth.JWT(email, null, keyFixed, ['https://www.googleapis.com/auth/spreadsheets'])
-    const sheets = google.sheets({ version: 'v4', auth })
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetsId,
-      range: 'cuentas!A1',
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [['TEST_ID','TEST_NOMBRE','corriente','RD$','0','false','false','#2E6DA4']] },
+    const visionRes = await fetch('https://vision.googleapis.com/v1/images:annotate', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          image: { content: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' },
+          features: [{ type: 'TEXT_DETECTION', maxResults: 1 }],
+        }]
+      }),
     })
-    appendTest = '✓ OK — fila de prueba escrita en cuentas'
-  } catch (e) { appendTest = '✗ ' + e.message }
+    const data = await visionRes.json()
+    if (!visionRes.ok) {
+      visionTest = '✗ HTTP ' + visionRes.status + ': ' + JSON.stringify(data.error || data)
+    } else {
+      visionTest = '✓ Vision API OK — proyecto: ' + (data.responses?.[0] ? 'responde' : 'sin texto (normal para imagen vacía)')
+    }
+  } catch (e) { visionTest = '✗ ' + e.message }
 
-  res.status(200).json({ checks, authTest, sheetsTest, appendTest })
+  // Test Claude API
+  let claudeTest = 'no intentado'
+  try {
+    if (!anthropicKey) {
+      claudeTest = '✗ ANTHROPIC_API_KEY no configurada en Vercel'
+    } else {
+      const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 10,
+          messages: [{ role: 'user', content: 'di solo: ok' }],
+        }),
+      })
+      const data = await claudeRes.json()
+      if (!claudeRes.ok) {
+        claudeTest = '✗ HTTP ' + claudeRes.status + ': ' + JSON.stringify(data.error || data)
+      } else {
+        claudeTest = '✓ Claude API OK — modelo: ' + data.model
+      }
+    }
+  } catch (e) { claudeTest = '✗ ' + e.message }
+
+  res.status(200).json({ visionTest, claudeTest, anthropicKey_presente: !!anthropicKey })
 }
