@@ -1,12 +1,8 @@
 // src/services/ocr.js
-// OCR local sin APIs externas usando Tesseract.js (gratis, corre en el navegador)
-// + clasificador local sin Claude
+// OCR via Google Vision API (servidor) + clasificador local
 
 import { clasificarGasto } from './classifier'
 
-/**
- * Comprime imagen antes de procesarla
- */
 export function compressImage(file, maxWidth = 1200, quality = 0.85) {
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas')
@@ -25,79 +21,56 @@ export function compressImage(file, maxWidth = 1200, quality = 0.85) {
   })
 }
 
-/**
- * Extrae texto de imagen usando Tesseract.js (OCR en el navegador, 100% gratis)
- */
-async function extractTextTesseract(file, onProgress) {
-  // Carga Tesseract dinámicamente (no lo instalamos como dep, lo cargamos desde CDN)
-  if (!window.Tesseract) {
-    onProgress?.('Cargando motor OCR...')
-    await new Promise((resolve, reject) => {
-      const script = document.createElement('script')
-      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'
-      script.onload  = resolve
-      script.onerror = reject
-      document.head.appendChild(script)
-    })
-  }
-
-  onProgress?.('Reconociendo texto...')
-  const compressed = await compressImage(file, 1400, 0.9)
-  const url        = URL.createObjectURL(compressed)
-
-  try {
-    const result = await window.Tesseract.recognize(url, 'spa+eng', {
-      logger: m => {
-        if (m.status === 'recognizing text') {
-          onProgress?.(`Reconociendo texto: ${Math.round(m.progress * 100)}%`)
-        }
-      },
-    })
-    URL.revokeObjectURL(url)
-    return {
-      texto:     result.data.text,
-      confianza: result.data.confidence / 100,
-    }
-  } catch (e) {
-    URL.revokeObjectURL(url)
-    throw e
-  }
+function fileToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
 }
 
-/**
- * Pipeline completo: imagen → OCR (Tesseract) → clasificación local
- */
+async function extractTextVision(file, onProgress) {
+  onProgress?.('📷 Comprimiendo imagen...')
+  const compressed = await compressImage(file)
+  const base64     = await fileToBase64(compressed)
+
+  onProgress?.('🔍 Leyendo texto de la factura...')
+  const res = await fetch('/api/ocr', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg' }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.message || 'Error en OCR')
+  return data
+}
+
 export async function processReceiptImage(file, comerciosAprendidos = [], onProgress) {
-  // Paso 1: OCR con Tesseract.js
-  onProgress?.('📷 Preparando imagen...')
   let texto = ''
   let confianzaOCR = 0.5
 
   try {
-    const ocrResult = await extractTextTesseract(file, onProgress)
-    texto       = ocrResult.texto
-    confianzaOCR = ocrResult.confianza
+    const result = await extractTextVision(file, onProgress)
+    texto        = result.texto || ''
+    confianzaOCR = result.confianza || 0.5
   } catch (e) {
-    // Si Tesseract falla (sin conexión para cargar CDN), continuar con texto vacío
-    console.warn('Tesseract falló:', e.message)
-    texto = ''
+    console.warn('Vision OCR falló:', e.message)
+    onProgress?.('⚠️ No se pudo leer el texto — completa manualmente')
   }
 
   onProgress?.('🤖 Clasificando gasto...')
+  const clasificacion = clasificarGasto(texto, comerciosAprendidos)
 
-  // Paso 2: Clasificación local
-  const clasificacion = clasificarGasto(texto || '', comerciosAprendidos)
-
-  // Si no se extrajo texto, marcar como necesita confirmación
   if (!texto || texto.trim().length < 5) {
-    clasificacion.confianza = 0.3
+    clasificacion.confianza          = 0.3
     clasificacion.necesitaConfirmacion = true
-    clasificacion.razon = 'No se pudo extraer texto — por favor completa los datos manualmente'
+    clasificacion.razon              = 'No se extrajo texto — completa los datos manualmente'
   }
 
   return {
     ...clasificacion,
-    textoOCR:    texto,
+    textoOCR:            texto,
     confianzaOCR,
     necesitaConfirmacion: clasificacion.confianza < 0.75,
   }
