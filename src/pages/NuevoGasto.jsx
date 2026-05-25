@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
-  getCuentas, getUsuarios, addGasto, addTransferencia,
+  getCuentas, getUsuarios, addGasto, addTransferencia, getGastos,
   updateBalance, getSheet, appendRow, updateRow, getComercios, upsertComercio,
 } from '../services/sheets'
 import { processReceiptImage } from '../services/ocr'
@@ -227,6 +227,16 @@ export default function NuevoGasto() {
       if (form.comercio && sugerencia) {
         await upsertComercio(form.comercio, form.categoria)
       }
+
+      // 7. Verificar presupuestos y enviar alertas (sin bloquear el guardado)
+      try {
+        const { verificarPresupuestos } = await import('../services/alertas')
+        const [presData, gastosData] = await Promise.all([
+          getSheet('presupuestos'),
+          getGastos({ mes: form.fecha.substring(0, 7) }),
+        ])
+        await verificarPresupuestos(form.categoria, gastosData, presData.rows || [], usuarios)
+      } catch (e) { console.warn('Alertas:', e.message) }
 
       setModo(MODO_GUARDADO)
       setTimeout(() => navigate('/'), 1800)
