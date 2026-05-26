@@ -62,9 +62,25 @@ export async function addGasto(gasto) {
   return id
 }
 
-export async function getCuentas() {
+export async function getCuentas({ usuarioId = '', isAdmin = false } = {}) {
   const data = await getSheet('cuentas')
-  return (data.rows || []).filter(r => r.activa === 'true')
+  return (data.rows || []).filter(r => {
+    if (r.activa !== 'true') return false
+    if (r.visibilidad === 'privada') return isAdmin || r.owner_id === usuarioId
+    return true
+  })
+}
+
+export async function getCuentasFamiliares() {
+  const data = await getSheet('cuentas')
+  return (data.rows || []).filter(r => r.activa === 'true' && r.visibilidad !== 'privada')
+}
+
+export async function getCuentasPrivadas(usuarioId) {
+  const data = await getSheet('cuentas')
+  return (data.rows || []).filter(r =>
+    r.activa === 'true' && r.visibilidad === 'privada' && r.owner_id === usuarioId
+  )
 }
 
 export async function updateBalance(cuentaId, nuevoBalance) {
@@ -85,8 +101,17 @@ export async function addCuenta(cuenta) {
     solo_consulta: cuenta.solo_consulta ? 'true' : 'false',
     activa:        'true',
     color:         cuenta.color || '#2E6DA4',
+    visibilidad:   cuenta.visibilidad || 'familiar',
+    owner_id:      cuenta.owner_id || '',
   })
   return id
+}
+
+export async function updateCuenta(cuentaId, cambios) {
+  const data = await getSheet('cuentas')
+  const idx  = (data.rows || []).findIndex(r => r.id === cuentaId)
+  if (idx === -1) throw new Error('Cuenta no encontrada')
+  await updateRow('cuentas', idx + 2, { ...data.rows[idx], ...cambios })
 }
 
 export async function getUsuarios() {

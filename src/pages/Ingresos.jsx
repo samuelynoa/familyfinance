@@ -18,7 +18,7 @@ const CATEGORIAS = [
 ]
 
 export default function Ingresos() {
-  const { perfil } = useAuth()
+  const { perfil, isAdmin } = useAuth()
   const [ingresos, setIngresos] = useState([])
   const [cuentas,  setCuentas]  = useState([])
   const [usuarios, setUsuarios] = useState([])
@@ -39,7 +39,7 @@ export default function Ingresos() {
 
   async function load() {
     try {
-      const [i, c, u] = await Promise.all([getIngresos({ mes }), getCuentas(), getUsuarios()])
+      const [i, c, u] = await Promise.all([getIngresos({ mes }), getCuentas({ usuarioId: perfil?.id, isAdmin }), getUsuarios()])
       setIngresos(i); setCuentas(c); setUsuarios(u)
       const yo = u.find(u => u.email === perfil?.email)
       if (yo) setForm(f => ({ ...f, usuario_id: yo.id }))

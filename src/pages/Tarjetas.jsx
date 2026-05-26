@@ -6,7 +6,7 @@ import { CreditCard, Plus, X, AlertCircle } from 'lucide-react'
 const COLORES = ['#1E3A5F','#B91C1C','#1B5E35','#5B21B6','#7A4800','#0E7490']
 
 export default function Tarjetas() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, perfil } = useAuth()
   const [tarjetas, setTarjetas] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -40,6 +40,8 @@ export default function Tarjetas() {
         moneda:      form.moneda,
         activa:      'true',
         color:       form.color,
+        visibilidad: form.visibilidad || 'familiar',
+        owner_id:    perfil?.id || '',
       })
       await load()
       setShowForm(false)
@@ -96,6 +98,19 @@ export default function Tarjetas() {
               <label className="label">Día de corte</label>
               <input className="input" type="number" min="1" max="31" placeholder="25"
                 value={form.fecha_corte} onChange={e => setForm(f => ({ ...f, fecha_corte: e.target.value }))} />
+            </div>
+          </div>
+          <div className="field">
+            <label className="label">Visibilidad</label>
+            <div style={{ display:'flex', gap:'.75rem' }}>
+              {[{v:'familiar',l:'👨‍👩‍👧 Familiar'},{v:'privada',l:'🔒 Privada'}].map(({v,l}) => (
+                <button key={v} type="button" onClick={() => setForm(f=>({...f, visibilidad:v}))}
+                  style={{ flex:1, padding:'.6rem', borderRadius:10, border:'1.5px solid', cursor:'pointer', fontWeight:600, fontSize:'.85rem',
+                    borderColor: form.visibilidad===v?'#2E6DA4':'#E5E7EB', background: form.visibilidad===v?'#EEF5FC':'#fff',
+                    color: form.visibilidad===v?'#2E6DA4':'#4B5563' }}>
+                  {l}
+                </button>
+              ))}
             </div>
           </div>
           <div className="field">

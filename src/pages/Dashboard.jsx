@@ -16,7 +16,7 @@ const CATEG_ICONS = {
 }
 
 export default function Dashboard() {
-  const { perfil } = useAuth()
+  const { perfil, isAdmin } = useAuth()
   const [cuentas,  setCuentas]  = useState([])
   const [gastos,   setGastos]   = useState([])
   const [ingresos, setIngresos] = useState([])
@@ -28,7 +28,7 @@ export default function Dashboard() {
     async function load() {
       try {
         const [c, g, i] = await Promise.all([
-          getCuentas(),
+          getCuentas({ usuarioId: perfil?.id, isAdmin }),
           getGastos({ mes }),
           getIngresos({ mes }),
         ])

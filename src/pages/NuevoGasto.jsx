@@ -39,7 +39,7 @@ const MODO_MANUAL     = 'manual'      // formulario manual
 const MODO_GUARDADO   = 'guardado'    // éxito
 
 export default function NuevoGasto() {
-  const { perfil }  = useAuth()
+  const { perfil, isAdmin }  = useAuth()
   const navigate    = useNavigate()
   const fileInputRef = useRef(null)
 
@@ -82,7 +82,7 @@ export default function NuevoGasto() {
     async function load() {
       try {
         const [c, u, t, com] = await Promise.all([
-          getCuentas(), getUsuarios(),
+          getCuentas({ usuarioId: perfil?.id, isAdmin }), getUsuarios(),
           getSheet('tarjetas_credito'), getComercios(),
         ])
         setCuentas(c)

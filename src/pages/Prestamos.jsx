@@ -4,7 +4,7 @@ import { getSheet, appendRow, updateRow } from '../services/sheets'
 import { Plus, X, ChevronDown, ChevronUp, TrendingDown, Calendar, DollarSign } from 'lucide-react'
 
 export default function Prestamos() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, perfil } = useAuth()
   const [prestamos, setPrestamos] = useState([])
   const [loading,   setLoading]   = useState(true)
   const [showForm,  setShowForm]  = useState(false)
@@ -14,7 +14,7 @@ export default function Prestamos() {
   const [form, setForm] = useState({
     nombre: '', capital_original: '', tasa_anual: '',
     cuota_mensual: '', fecha_inicio: new Date().toISOString().split('T')[0],
-    fecha_vencimiento: '', cuenta_id: '',
+    fecha_vencimiento: '', cuenta_id: '', visibilidad: 'familiar',
   })
 
   useEffect(() => { load() }, [])
@@ -22,7 +22,11 @@ export default function Prestamos() {
   async function load() {
     try {
       const data = await getSheet('prestamos')
-      setPrestamos((data.rows || []).filter(r => r.activo !== 'false'))
+      setPrestamos((data.rows || []).filter(r => {
+      if (r.activo === 'false') return false
+      if (r.visibilidad === 'privada') return isAdmin || r.owner_id === perfil?.id
+      return true
+    }))
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }
@@ -42,6 +46,8 @@ export default function Prestamos() {
         fecha_vencimiento: form.fecha_vencimiento,
         cuenta_id:        form.cuenta_id || '',
         activo:           'true',
+        visibilidad:      form.visibilidad || 'familiar',
+        owner_id:         perfil?.id || '',
       })
       await load()
       setShowForm(false)
@@ -140,6 +146,19 @@ export default function Prestamos() {
             <label className="label">Fecha de vencimiento</label>
             <input className="input" type="date"
               value={form.fecha_vencimiento} onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))} />
+          </div>
+          <div className="field">
+            <label className="label">Visibilidad</label>
+            <div style={{ display:'flex', gap:'.75rem' }}>
+              {[{v:'familiar',l:'👨‍👩‍👧 Familiar'},{v:'privada',l:'🔒 Privada'}].map(({v,l}) => (
+                <button key={v} type="button" onClick={() => setForm(f=>({...f, visibilidad:v}))}
+                  style={{ flex:1, padding:'.6rem', borderRadius:10, border:'1.5px solid', cursor:'pointer', fontWeight:600, fontSize:'.85rem',
+                    borderColor: form.visibilidad===v?'#2E6DA4':'#E5E7EB', background: form.visibilidad===v?'#EEF5FC':'#fff',
+                    color: form.visibilidad===v?'#2E6DA4':'#4B5563' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
           {error && <div style={S.errorBox}>{error}</div>}
           <div style={{ display: 'flex', gap: '.75rem' }}>
