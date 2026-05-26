@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Wallet, PlusCircle, List, Settings } from 'lucide-react'
+import { Home, Wallet, PlusCircle, BarChart2, Settings } from 'lucide-react'
 
 const NAV = [
   { to: '/',             icon: Home,       label: 'Inicio'    },
   { to: '/cuentas',      icon: Wallet,     label: 'Cuentas'   },
   { to: '/gastos/nuevo', icon: PlusCircle, label: 'Registrar' },
-  { to: '/gastos',       icon: List,       label: 'Gastos'    },
+  { to: '/reportes',     icon: BarChart2,  label: 'Reportes'  },
   { to: '/config',       icon: Settings,   label: 'Config'    },
 ]
 
@@ -30,11 +30,7 @@ export default function BottomNav() {
 }
 
 const S = {
-  nav: {
-    position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff',
-    borderTop: '1px solid #E5E7EB', display: 'flex',
-    padding: '.3rem 0 calc(.3rem + env(safe-area-inset-bottom))', zIndex: 100,
-  },
-  item: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.15rem', textDecoration: 'none' },
-  iconWrap: { width: 42, height: 32, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  nav: { position:'fixed',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid #E5E7EB',display:'flex',padding:'.3rem 0 calc(.3rem + env(safe-area-inset-bottom))',zIndex:100 },
+  item: { flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:'.15rem',textDecoration:'none' },
+  iconWrap: { width:42,height:32,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center' },
 }
