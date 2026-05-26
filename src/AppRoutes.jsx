@@ -12,7 +12,9 @@ import GastosLista from './pages/GastosLista'
 import Prestamos from './pages/Prestamos'
 import Presupuestos from './pages/Presupuestos'
 import DeudasInternas from './pages/DeudasInternas'
-import { Reportes, Config } from './pages/Placeholders'
+import Ingresos from './pages/Ingresos'
+import Reportes from './pages/Reportes'
+import { Config } from './pages/Placeholders'
 
 function RequireAuth({ children }) {
   const { firebaseUser, loading } = useAuth()
@@ -33,17 +35,18 @@ export default function AppRoutes() {
       <Route path="/login"          element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/reset-password" element={<PublicOnly><ResetPassword /></PublicOnly>} />
       <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
-        <Route index                      element={<Dashboard />} />
-        <Route path="cuentas"             element={<Cuentas />} />
-        <Route path="cuentas/tarjetas"    element={<Tarjetas />} />
-        <Route path="gastos"              element={<GastosLista />} />
-        <Route path="gastos/nuevo"        element={<NuevoGasto />} />
-        <Route path="prestamos"           element={<Prestamos />} />
-        <Route path="presupuestos"        element={<Presupuestos />} />
-        <Route path="deudas"              element={<DeudasInternas />} />
-        <Route path="reportes"            element={<Reportes />} />
-        <Route path="config"              element={<Config />} />
-        <Route path="config/usuarios"     element={<Usuarios />} />
+        <Route index                    element={<Dashboard />} />
+        <Route path="cuentas"           element={<Cuentas />} />
+        <Route path="cuentas/tarjetas"  element={<Tarjetas />} />
+        <Route path="gastos"            element={<GastosLista />} />
+        <Route path="gastos/nuevo"      element={<NuevoGasto />} />
+        <Route path="ingresos"          element={<Ingresos />} />
+        <Route path="reportes"          element={<Reportes />} />
+        <Route path="prestamos"         element={<Prestamos />} />
+        <Route path="presupuestos"      element={<Presupuestos />} />
+        <Route path="deudas"            element={<DeudasInternas />} />
+        <Route path="config"            element={<Config />} />
+        <Route path="config/usuarios"   element={<Usuarios />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
