@@ -6,26 +6,17 @@ async function sheetsRequest(method, sheet, data = null, range = null) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ method, sheet, data, range, sheetsId: SHEETS_ID }),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.message || 'Sheets API error ' + res.status)
-  }
-  return res.json()
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.message || 'Error ' + res.status + ' en ' + sheet)
+  return json
 }
 
-export async function getSheet(sheet) {
-  return sheetsRequest('GET', sheet)
-}
-export async function appendRow(sheet, row) {
-  return sheetsRequest('APPEND', sheet, row)
-}
-export async function updateRow(sheet, rowIndex, row) {
-  return sheetsRequest('UPDATE', sheet, row, rowIndex)
-}
-export async function deleteRow(sheet, rowIndex) {
-  return sheetsRequest('DELETE', sheet, null, rowIndex)
-}
+export async function getSheet(sheet) { return sheetsRequest('GET', sheet) }
+export async function appendRow(sheet, row) { return sheetsRequest('APPEND', sheet, row) }
+export async function updateRow(sheet, rowIndex, row) { return sheetsRequest('UPDATE', sheet, row, rowIndex) }
+export async function deleteRow(sheet, rowIndex) { return sheetsRequest('DELETE', sheet, null, rowIndex) }
 
+// ─── Gastos ──────────────────────────────────────────────────────────────────
 export async function getGastos(filters = {}) {
   const data = await getSheet('gastos')
   let rows = data.rows || []
@@ -38,42 +29,46 @@ export async function getGastos(filters = {}) {
 
 export async function addGasto(gasto) {
   const id = 'g_' + Date.now()
-  await appendRow('gastos', {
+  const row = {
     id,
-    fecha:             gasto.fecha || new Date().toISOString().split('T')[0],
-    monto_rdp:         gasto.monto_rdp || '',
-    monto_usd:         gasto.monto_usd || '',
-    categoria:         gasto.categoria,
-    subcategoria:      gasto.subcategoria || '',
-    tipo:              gasto.tipo || 'familiar',
-    usuario_id:        gasto.usuario_id,
-    cuenta_id:         gasto.cuenta_id || '',
-    tarjeta_id:        gasto.tarjeta_id || '',
-    descripcion:       gasto.descripcion || '',
-    comercio:          gasto.comercio || '',
-    es_ahorro:         gasto.es_ahorro ? 'true' : 'false',
-    cuenta_destino_id: gasto.cuenta_destino_id || '',
-    prestamo_id:       gasto.prestamo_id || '',
-    foto_url:          gasto.foto_url || '',
-    confianza_ia:      gasto.confianza_ia || '',
-    confirmado_usuario:gasto.confirmado_usuario ? 'true' : 'false',
-    personal_familiar: gasto.personal_familiar || 'familiar',
-  })
+    fecha:              gasto.fecha || new Date().toISOString().split('T')[0],
+    monto_rdp:          gasto.monto_rdp || '',
+    monto_usd:          gasto.monto_usd || '',
+    categoria:          gasto.categoria,
+    subcategoria:       gasto.subcategoria || '',
+    tipo:               gasto.tipo || 'familiar',
+    usuario_id:         gasto.usuario_id,
+    cuenta_id:          gasto.cuenta_id || '',
+    tarjeta_id:         gasto.tarjeta_id || '',
+    descripcion:        gasto.descripcion || '',
+    comercio:           gasto.comercio || '',
+    es_ahorro:          gasto.es_ahorro ? 'true' : 'false',
+    cuenta_destino_id:  gasto.cuenta_destino_id || '',
+    prestamo_id:        gasto.prestamo_id || '',
+    foto_url:           gasto.foto_url || '',
+    confianza_ia:       gasto.confianza_ia || '',
+    confirmado_usuario: gasto.confirmado_usuario ? 'true' : 'false',
+    personal_familiar:  gasto.personal_familiar || 'familiar',
+  }
+  await appendRow('gastos', row)
   return id
 }
 
+// ─── Cuentas ─────────────────────────────────────────────────────────────────
+// Filtra por visibilidad: familiar = todos, privada = solo owner o admin
 export async function getCuentas({ usuarioId = '', isAdmin = false } = {}) {
   const data = await getSheet('cuentas')
   return (data.rows || []).filter(r => {
     if (r.activa !== 'true') return false
-    if (r.visibilidad === 'privada') return isAdmin || r.owner_id === usuarioId
+    const vis = r.visibilidad || 'familiar'
+    if (vis === 'privada') return isAdmin || r.owner_id === usuarioId
     return true
   })
 }
 
 export async function getCuentasFamiliares() {
   const data = await getSheet('cuentas')
-  return (data.rows || []).filter(r => r.activa === 'true' && r.visibilidad !== 'privada')
+  return (data.rows || []).filter(r => r.activa === 'true' && (r.visibilidad || 'familiar') !== 'privada')
 }
 
 export async function getCuentasPrivadas(usuarioId) {
@@ -97,7 +92,7 @@ export async function addCuenta(cuenta) {
     nombre:        cuenta.nombre,
     tipo:          cuenta.tipo,
     moneda:        cuenta.moneda,
-    balance:       cuenta.balance || '0',
+    balance:       Number(cuenta.balance || 0).toFixed(2),
     solo_consulta: cuenta.solo_consulta ? 'true' : 'false',
     activa:        'true',
     color:         cuenta.color || '#2E6DA4',
@@ -114,6 +109,91 @@ export async function updateCuenta(cuentaId, cambios) {
   await updateRow('cuentas', idx + 2, { ...data.rows[idx], ...cambios })
 }
 
+// ─── Tarjetas ─────────────────────────────────────────────────────────────────
+export async function getTarjetas({ usuarioId = '', isAdmin = false } = {}) {
+  const data = await getSheet('tarjetas_credito')
+  return (data.rows || []).filter(r => {
+    if (r.activa !== 'true') return false
+    const vis = r.visibilidad || 'familiar'
+    if (vis === 'privada') return isAdmin || r.owner_id === usuarioId
+    return true
+  })
+}
+
+export async function addTarjeta(tarjeta) {
+  const id = 'tc_' + Date.now()
+  await appendRow('tarjetas_credito', {
+    id,
+    nombre:      tarjeta.nombre,
+    banco:       tarjeta.banco || '',
+    limite:      tarjeta.limite,
+    saldo_usado: '0',
+    fecha_corte: tarjeta.fecha_corte || '25',
+    moneda:      tarjeta.moneda || 'RD$',
+    activa:      'true',
+    color:       tarjeta.color || '#1E3A5F',
+    visibilidad: tarjeta.visibilidad || 'familiar',
+    owner_id:    tarjeta.owner_id || '',
+  })
+  return id
+}
+
+export async function updateTarjeta(tarjetaId, cambios) {
+  const data = await getSheet('tarjetas_credito')
+  const idx  = (data.rows || []).findIndex(r => r.id === tarjetaId)
+  if (idx === -1) throw new Error('Tarjeta no encontrada')
+  await updateRow('tarjetas_credito', idx + 2, { ...data.rows[idx], ...cambios })
+}
+
+// ─── Préstamos ────────────────────────────────────────────────────────────────
+export async function getPrestamos({ usuarioId = '', isAdmin = false } = {}) {
+  const data = await getSheet('prestamos')
+  return (data.rows || []).filter(r => {
+    if (r.activo === 'false') return false
+    const vis = r.visibilidad || 'familiar'
+    if (vis === 'privada') return isAdmin || r.owner_id === usuarioId
+    return true
+  })
+}
+
+export async function addPrestamo(prestamo) {
+  const id = 'pre_' + Date.now()
+  await appendRow('prestamos', {
+    id,
+    nombre:            prestamo.nombre,
+    capital_original:  Number(prestamo.capital_original).toFixed(2),
+    capital_pendiente: Number(prestamo.capital_original).toFixed(2),
+    tasa_anual:        prestamo.tasa_anual || '',
+    cuota_mensual:     prestamo.cuota_mensual,
+    fecha_inicio:      prestamo.fecha_inicio || '',
+    fecha_vencimiento: prestamo.fecha_vencimiento || '',
+    cuenta_id:         prestamo.cuenta_id || '',
+    activo:            'true',
+    visibilidad:       prestamo.visibilidad || 'familiar',
+    owner_id:          prestamo.owner_id || '',
+  })
+  return id
+}
+
+export async function updatePrestamo(prestamoId, cambios) {
+  const data = await getSheet('prestamos')
+  const idx  = (data.rows || []).findIndex(r => r.id === prestamoId)
+  if (idx === -1) throw new Error('Préstamo no encontrado')
+  await updateRow('prestamos', idx + 2, { ...data.rows[idx], ...cambios })
+}
+
+// ─── Presupuestos ─────────────────────────────────────────────────────────────
+export async function getPresupuestos({ usuarioId = '', isAdmin = false } = {}) {
+  const data = await getSheet('presupuestos')
+  return (data.rows || []).filter(r => {
+    if (r.activo === 'false') return false
+    const vis = r.visibilidad || 'familiar'
+    if (vis === 'privada') return isAdmin || r.owner_id === usuarioId
+    return true
+  })
+}
+
+// ─── Usuarios ─────────────────────────────────────────────────────────────────
 export async function getUsuarios() {
   const data = await getSheet('usuarios')
   return (data.rows || []).filter(r => r.activo === 'true')
@@ -137,6 +217,7 @@ export async function getUsuarioByEmail(email) {
   return (data.rows || []).find(r => r.email === email && r.activo === 'true') || null
 }
 
+// ─── Transferencias ───────────────────────────────────────────────────────────
 export async function addTransferencia(t) {
   const id = 'tr_' + Date.now()
   await appendRow('transferencias', {
@@ -153,35 +234,7 @@ export async function addTransferencia(t) {
   return id
 }
 
-export async function getPresupuestos() {
-  const data = await getSheet('presupuestos')
-  return (data.rows || []).filter(r => r.activo === 'true')
-}
-
-export async function getComercios() {
-  const data = await getSheet('comercios_aprendidos')
-  return data.rows || []
-}
-
-export async function upsertComercio(nombre, categoria) {
-  const data = await getSheet('comercios_aprendidos')
-  const rows = data.rows || []
-  const idx  = rows.findIndex(r => r.nombre_comercio && r.nombre_comercio.toLowerCase() === nombre.toLowerCase())
-  const hoy  = new Date().toISOString().split('T')[0]
-  if (idx === -1) {
-    await appendRow('comercios_aprendidos', {
-      id: 'com_' + Date.now(), nombre_comercio: nombre, categoria,
-      veces_confirmado: '1', ultima_vez: hoy,
-    })
-  } else {
-    await updateRow('comercios_aprendidos', idx + 2, {
-      ...rows[idx], categoria,
-      veces_confirmado: String(Number(rows[idx].veces_confirmado || 0) + 1),
-      ultima_vez: hoy,
-    })
-  }
-}
-
+// ─── Ingresos ─────────────────────────────────────────────────────────────────
 export async function addIngreso(ingreso) {
   const id = 'inc_' + Date.now()
   await appendRow('ingresos', {
@@ -204,4 +257,29 @@ export async function getIngresos(filters = {}) {
   if (filters.mes)        rows = rows.filter(r => r.fecha && r.fecha.startsWith(filters.mes))
   if (filters.usuario_id) rows = rows.filter(r => r.usuario_id === filters.usuario_id)
   return rows
+}
+
+// ─── Comercios aprendidos ─────────────────────────────────────────────────────
+export async function getComercios() {
+  const data = await getSheet('comercios_aprendidos')
+  return data.rows || []
+}
+
+export async function upsertComercio(nombre, categoria) {
+  const data = await getSheet('comercios_aprendidos')
+  const rows = data.rows || []
+  const idx  = rows.findIndex(r => (r.nombre_comercio || '').toLowerCase() === nombre.toLowerCase())
+  const hoy  = new Date().toISOString().split('T')[0]
+  if (idx === -1) {
+    await appendRow('comercios_aprendidos', {
+      id: 'com_' + Date.now(), nombre_comercio: nombre,
+      categoria, veces_confirmado: '1', ultima_vez: hoy,
+    })
+  } else {
+    await updateRow('comercios_aprendidos', idx + 2, {
+      ...rows[idx], categoria,
+      veces_confirmado: String(Number(rows[idx].veces_confirmado || 0) + 1),
+      ultima_vez: hoy,
+    })
+  }
 }
