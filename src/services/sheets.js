@@ -247,6 +247,8 @@ export async function addIngreso(ingreso) {
     cuenta_id:   ingreso.cuenta_id || '',
     descripcion: ingreso.descripcion || '',
     recurrente:  ingreso.recurrente ? 'true' : 'false',
+    visibilidad: ingreso.visibilidad || 'privada',
+    owner_id:    ingreso.owner_id || '',
   })
   return id
 }
