@@ -45,7 +45,9 @@ export default function Dashboard() {
   }, [mes])
 
   const totalGastos   = gastos.reduce((s, g)  => s + (Number(g.monto_rdp)  || 0), 0)
-  const totalIngresos = ingresos.reduce((s, i) => s + (Number(i.monto_rdp) || 0), 0)
+  //const totalIngresos = ingresos.reduce((s, i) => s + (Number(i.monto_rdp) || 0), 0)
+  const ingresosFamiliares = ingresos.filter(i => (i.visibilidad || 'privada') === 'familiar')
+  const totalIngresos = ingresosFamiliares.reduce((s, i) => s + (Number(i.monto_rdp) || 0), 0)
   const ahorro        = totalIngresos - totalGastos
 
   const balanceRDP = cuentas
