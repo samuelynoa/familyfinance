@@ -1,9 +1,9 @@
-// Maneja PIN + preferencias — todo en localStorage
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 
 const Ctx = createContext(null)
 
 const DEFAULTS = { pinEnabled: false, pinHash: '' }
+const BIOMETRIC_BYPASS = '__biometric__bypass__'
 
 function load() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('ff_prefs') || '{}') } }
@@ -28,16 +28,22 @@ export function PrefsProvider({ children }) {
     save(next)
   }
 
-  const setupPin  = (pin) => { update({ pinEnabled: true, pinHash: hash(pin) }); setUnlocked(true) }
-  const disablePin = ()   => { update({ pinEnabled: false, pinHash: '' });        setUnlocked(true) }
-  const verifyPin = (pin) => {
-    const ok = hash(pin) === prefs.pinHash
+  const setupPin   = (pin) => { update({ pinEnabled: true, pinHash: hash(pin) }); setUnlocked(true) }
+  const disablePin = ()    => { update({ pinEnabled: false, pinHash: '' });        setUnlocked(true) }
+
+  function verifyPin(pin) {
+    // Bypass especial para verificación biométrica exitosa
+    const ok = pin === BIOMETRIC_BYPASS || hash(pin) === prefs.pinHash
     if (ok) setUnlocked(true)
     return ok
   }
 
   return (
-    <Ctx.Provider value={{ prefs, unlocked, pinEnabled: prefs.pinEnabled, setupPin, disablePin, verifyPin }}>
+    <Ctx.Provider value={{
+      prefs, unlocked,
+      pinEnabled: prefs.pinEnabled,
+      setupPin, disablePin, verifyPin,
+    }}>
       {children}
     </Ctx.Provider>
   )
