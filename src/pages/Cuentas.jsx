@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { usePrefs } from '../context/PrefsContext'
 import { getCuentas, addCuenta, updateCuenta, getSheet } from '../services/sheets'
-import { Plus, Eye, EyeOff, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User } from 'lucide-react'
+import { Plus, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User } from 'lucide-react'
+import { usePrefs } from '../context/PrefsContext'
 
 const TIPOS = [
   { value: 'corriente',      label: 'Corriente / Ahorro banco', icon: '🏦' },
@@ -25,7 +27,6 @@ export default function Cuentas() {
   const [editando,     setEditando]     = useState(null)
   const [saving,       setSaving]       = useState(false)
   const [error,        setError]        = useState('')
-  const [hideBalances, setHideBalances] = useState(false)
   const [expandId,     setExpandId]     = useState(null)
   const [movimientos,  setMovimientos]  = useState([])
   const [form, setForm] = useState(FORM_VACIO)
