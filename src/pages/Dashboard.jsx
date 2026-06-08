@@ -5,6 +5,7 @@ import { getCuentas, getGastos, getIngresos } from '../services/sheets'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { TrendingDown, TrendingUp, Wallet, Plus, ChevronRight } from 'lucide-react'
+import { usePrefs } from '../context/PrefsContext'
 
 const CATEG_ICONS = {
   'Supermercado': '🛒', 'Combustible': '⛽', 'Educación': '📚',
@@ -16,7 +17,7 @@ const CATEG_ICONS = {
 }
 
 export default function Dashboard() {
-  const { perfil, isAdmin } = useAuth()
+  const { hideBalances } = usePrefs()
   const [cuentas,  setCuentas]  = useState([])
   const [gastos,   setGastos]   = useState([])
   const [ingresos, setIngresos] = useState([])
