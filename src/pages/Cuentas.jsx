@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
 import { getCuentas, addCuenta, updateCuenta, getSheet } from '../services/sheets'
-import { Plus, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User } from 'lucide-react'
+import { Plus, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User, Eye, EyeOff } from 'lucide-react'
 
 const TIPOS = [
   { value: 'corriente',      label: 'Corriente / Ahorro banco', icon: '🏦' },
@@ -19,7 +19,8 @@ const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.value, t]))
 const FORM_VACIO = { nombre:'', tipo:'corriente', moneda:'RD$', balance:'', solo_consulta:false, color:COLORES[0], visibilidad:'familiar' }
 
 export default function Cuentas() {
-  const { perfil, isAdmin } = useAuth()
+  const { perfil, isAdmin }              = useAuth()
+  const { hideBalances, toggleHideBalances } = usePrefs()
   const [cuentas,      setCuentas]      = useState([])
   const [loading,      setLoading]      = useState(true)
   const [showForm,     setShowForm]     = useState(false)
@@ -92,7 +93,7 @@ export default function Cuentas() {
       <div className="flex justify-between items-center" style={{marginBottom:'1rem'}}>
         <h2 style={{fontWeight:700}}>Mis cuentas</h2>
         <div style={{display:'flex',gap:'.5rem'}}>
-          <button className="btn btn-secondary" style={{padding:'.5rem .7rem'}} onClick={()=>setHideBalances(v=>!v)}>
+          <button className="btn btn-secondary" style={{padding:'.5rem .7rem'}} onClick={toggleHideBalances}>
             {hideBalances?<Eye size={18}/>:<EyeOff size={18}/>}
           </button>
           <button className="btn btn-primary" onClick={abrirNueva}><Plus size={16}/> Nueva</button>
