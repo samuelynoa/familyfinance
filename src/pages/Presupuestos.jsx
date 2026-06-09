@@ -75,8 +75,6 @@ export default function Presupuestos() {
           alerta_100:       form.alerta_100,
           activo:           'true',
           visibilidad:      form.visibilidad || 'familiar',
-          owner_id:         perfil?.id || '',
-          visibilidad:      form.visibilidad,
           owner_id:         form.visibilidad === 'privada' ? (perfil?.id||'') : '',
         })
       }

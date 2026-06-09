@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
 import { getCuentas, addCuenta, updateCuenta, getSheet } from '../services/sheets'
 import { Plus, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User } from 'lucide-react'
-import { usePrefs } from '../context/PrefsContext'
 
 const TIPOS = [
   { value: 'corriente',      label: 'Corriente / Ahorro banco', icon: '🏦' },
