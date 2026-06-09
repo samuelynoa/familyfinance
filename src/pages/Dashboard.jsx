@@ -17,6 +17,7 @@ const CATEG_ICONS = {
 }
 
 export default function Dashboard() {
+  const { perfil, isAdmin } = useAuth()
   const { hideBalances } = usePrefs()
   const [cuentas,  setCuentas]  = useState([])
   const [gastos,   setGastos]   = useState([])
@@ -83,18 +84,18 @@ export default function Dashboard() {
           Balance disponible RD$
         </p>
         <p style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-.02em' }}>
-          {fmt(balanceRDP)}
+          {hideBalances ? '••••••••' : fmt(balanceRDP)}
         </p>
         {balanceUSD > 0 && (
           <p style={{ color: 'rgba(255,255,255,.8)', fontSize: '.875rem', marginTop: '.25rem' }}>
-            + ${fmtN(balanceUSD)} USD
+            {hideBalances ? '+ $•••• USD' : '+ $' + fmtN(balanceUSD) + ' USD'}
           </p>
         )}
       </div>
 
       <div className="grid-2" style={{ marginBottom: '1.25rem' }}>
-        <StatCard icon={<TrendingDown size={18}/>} label={`Gastos ${nombreMes}`}   value={fmt(totalGastos)}   color="#DC2626" bg="#FEE2E2" />
-        <StatCard icon={<TrendingUp   size={18}/>} label={`Ingresos ${nombreMes}`} value={fmt(totalIngresos)} color="#1B5E35" bg="#D4EDDA" />
+        <StatCard icon={<TrendingDown size={18}/>} label={`Gastos ${nombreMes}`}   value={hideBalances ? 'RD$ ••••' : fmt(totalGastos)}   color="#DC2626" bg="#FEE2E2" />
+        <StatCard icon={<TrendingUp   size={18}/>} label={`Ingresos ${nombreMes}`} value={hideBalances ? 'RD$ ••••' : fmt(totalIngresos)} color="#1B5E35" bg="#D4EDDA" />
       </div>
 
       {totalIngresos > 0 && (
@@ -117,7 +118,7 @@ export default function Dashboard() {
           <div style={styles.empty}><Wallet size={28} color="#9CA3AF"/><p>Agrega cuentas desde Configuración</p></div>
         ) : (
           <div style={{ display: 'flex', gap: '.75rem', overflowX: 'auto', paddingBottom: '.25rem' }}>
-            {cuentas.slice(0, 6).map(c => <CuentaChip key={c.id} cuenta={c}/>)}
+            {cuentas.slice(0, 6).map(c => <CuentaChip key={c.id} cuenta={c} hideBalances={hideBalances}/>)}
           </div>
         )}
       </div>
@@ -157,7 +158,7 @@ function StatCard({ icon, label, value, color, bg }) {
   )
 }
 
-function CuentaChip({ cuenta }) {
+function CuentaChip({ cuenta, hideBalances }) {
   return (
     <div style={{
       background: cuenta.color || '#2E6DA4', color: '#fff',
@@ -165,7 +166,7 @@ function CuentaChip({ cuenta }) {
     }}>
       <p style={{ fontSize: '.72rem', opacity: .8, marginBottom: '.2rem' }}>{cuenta.nombre}</p>
       <p style={{ fontWeight: 800, fontSize: '1rem' }}>
-        {cuenta.moneda === 'USD' ? '$' : 'RD$'} {fmtN(Number(cuenta.balance || 0))}
+        {hideBalances ? '••••' : (cuenta.moneda === 'USD' ? '$' : 'RD$') + ' ' + fmtN(Number(cuenta.balance || 0))}
       </p>
       {cuenta.solo_consulta === 'true' && (
         <p style={{ fontSize: '.65rem', opacity: .7, marginTop: '.15rem' }}>Solo consulta</p>
