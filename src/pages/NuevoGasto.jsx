@@ -269,7 +269,7 @@ export default function NuevoGasto() {
       )}
       <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
         <div className="spinner" style={{ margin: '0 auto .75rem' }} />
-        <p style={{ fontWeight: 600, color: '#1F2937' }}>{ocrStatus}</p>
+        <p style={{ fontWeight: 600, color: 'var(--color-text,#1F2937)' }}>{ocrStatus}</p>
         <p style={{ fontSize: '.8rem', color: '#9CA3AF', marginTop: '.25rem' }}>
           Esto toma unos segundos...
         </p>
@@ -281,7 +281,7 @@ export default function NuevoGasto() {
   if (modo === MODO_SELECCION) return (
     <div>
       <h2 style={{ fontWeight: 700, marginBottom: '.25rem' }}>Nuevo gasto</h2>
-      <p style={{ color: '#9CA3AF', fontSize: '.875rem', marginBottom: '1.5rem' }}>
+      <p style={{ color: 'var(--color-text-muted,#9CA3AF)', fontSize: '.875rem', marginBottom: '1.5rem' }}>
         ¿Tienes una factura o recibo?
       </p>
 
@@ -326,7 +326,7 @@ export default function NuevoGasto() {
         input.onchange = handleImageSelect
         input.click()
       }}>
-        <div style={{ ...S.modeIcon, background: '#F3F4F6' }}>
+        <div style={{ ...S.modeIcon, background: 'var(--color-card-hover,#F3F4F6)' }}>
           📁
         </div>
         <div style={{ flex: 1 }}>
@@ -343,7 +343,7 @@ export default function NuevoGasto() {
 
       {/* Opción 2: Manual */}
       <div style={S.modeCard} onClick={() => setModo(MODO_MANUAL)}>
-        <div style={{ ...S.modeIcon, background: '#F3F4F6' }}>
+        <div style={{ ...S.modeIcon, background: 'var(--color-card-hover,#F3F4F6)' }}>
           <FileText size={28} color="#4B5563" />
         </div>
         <div style={{ flex: 1 }}>
@@ -469,12 +469,12 @@ function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro,
                 style={{
                   padding: '.6rem .3rem', borderRadius: 10, border: '1.5px solid',
                   borderColor: form.categoria === c.label ? '#2E6DA4' : '#E5E7EB',
-                  background:  form.categoria === c.label ? '#EEF5FC' : '#fff',
+                  background:  form.categoria === c.label ? '#EEF5FC' : 'var(--color-card,#fff)',
                   cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.2rem',
                 }}>
                 <span style={{ fontSize: '1.2rem' }}>{c.icon}</span>
                 <span style={{ fontSize: '.62rem', fontWeight: 600, lineHeight: 1.2, textAlign: 'center',
-                  color: form.categoria === c.label ? '#2E6DA4' : '#4B5563' }}>
+                  color: form.categoria === c.label ? '#2E6DA4' : 'var(--color-text-secondary,#4B5563)' }}>
                   {c.label}
                 </span>
               </button>
@@ -518,9 +518,9 @@ function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro,
             <button key={t} type="button" onClick={() => setF('tipo', t)} style={{
               flex: 1, padding: '.7rem', borderRadius: 10, border: '1.5px solid',
               borderColor: form.tipo === t ? '#2E6DA4' : '#E5E7EB',
-              background:  form.tipo === t ? '#EEF5FC' : '#fff',
+              background:  form.tipo === t ? '#EEF5FC' : 'var(--color-card,#fff)',
               cursor: 'pointer', fontWeight: 600, fontSize: '.875rem',
-              color: form.tipo === t ? '#2E6DA4' : '#4B5563',
+              color: form.tipo === t ? '#2E6DA4' : 'var(--color-text-secondary,#4B5563)',
             }}>
               {t === 'familiar' ? '👨‍👩‍👧 Familiar' : '👤 Personal'}
             </button>
@@ -535,19 +535,19 @@ function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro,
           <button type="button" onClick={() => setF('usa_tarjeta', false)} style={{
             flex: 1, padding: '.65rem', borderRadius: 10, border: '1.5px solid',
             borderColor: !form.usa_tarjeta ? '#2E6DA4' : '#E5E7EB',
-            background:  !form.usa_tarjeta ? '#EEF5FC' : '#fff',
+            background:  !form.usa_tarjeta ? '#EEF5FC' : 'var(--color-card,#fff)',
             cursor: 'pointer', fontWeight: 600, fontSize: '.82rem',
-            color: !form.usa_tarjeta ? '#2E6DA4' : '#4B5563',
+            color: !form.usa_tarjeta ? '#2E6DA4' : 'var(--color-text-secondary,#4B5563)',
           }}>🏦 Cuenta / Efectivo</button>
           <button type="button" onClick={() => setF('usa_tarjeta', true)}
             disabled={tarjetas.length === 0}
             style={{
               flex: 1, padding: '.65rem', borderRadius: 10, border: '1.5px solid',
               borderColor: form.usa_tarjeta ? '#2E6DA4' : '#E5E7EB',
-              background:  form.usa_tarjeta ? '#EEF5FC' : '#fff',
+              background:  form.usa_tarjeta ? '#EEF5FC' : 'var(--color-card,#fff)',
               cursor: tarjetas.length === 0 ? 'not-allowed' : 'pointer',
               fontWeight: 600, fontSize: '.82rem',
-              color: form.usa_tarjeta ? '#2E6DA4' : '#4B5563',
+              color: form.usa_tarjeta ? '#2E6DA4' : 'var(--color-text-secondary,#4B5563)',
               opacity: tarjetas.length === 0 ? .5 : 1,
             }}>💳 Tarjeta crédito</button>
         </div>
@@ -583,7 +583,7 @@ function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro,
       {esAhorro && (
         <div className="card" style={{ marginBottom: '1rem', borderLeft: '4px solid #1B5E35' }}>
           <p style={{ fontWeight: 700, color: '#1B5E35', marginBottom: '.5rem' }}>💰 Transferencia de ahorro</p>
-          <p style={{ fontSize: '.82rem', color: '#4B5563', marginBottom: '.75rem' }}>
+          <p style={{ fontSize: '.82rem', color: 'var(--color-text-secondary,#4B5563)', marginBottom: '.75rem' }}>
             El dinero saldrá de la cuenta seleccionada arriba y se moverá a:
           </p>
           <div className="field" style={{ marginBottom: 0 }}>
@@ -634,10 +634,10 @@ function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro,
 const S = {
   centerScreen: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '65vh', textAlign: 'center', gap: '.5rem' },
   modeCard: {
-    background: '#fff', borderRadius: 16, padding: '1.1rem 1.25rem',
+    background: 'var(--color-card,#fff)', borderRadius: 16, padding: '1.1rem 1.25rem',
     display: 'flex', alignItems: 'center', gap: '1rem',
-    boxShadow: '0 2px 8px rgba(0,0,0,.08)', cursor: 'pointer',
-    border: '1.5px solid #E5E7EB', marginBottom: '.75rem',
+    boxShadow: '0 2px 8px var(--color-shadow,rgba(0,0,0,.08))', cursor: 'pointer',
+    border: '1.5px solid var(--color-border,#E5E7EB)', marginBottom: '.75rem',
     transition: 'border-color .15s',
   },
   modeIcon: { width: 52, height: 52, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1.5rem' },
