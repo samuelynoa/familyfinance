@@ -111,7 +111,7 @@ export default function Presupuestos() {
             <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center' }}>
               <div style={{ display:'flex',alignItems:'center',gap:'.4rem' }}>
                 <p style={{ fontWeight:600,fontSize:'.95rem' }}>{p.categoria}</p>
-                {p.visibilidad==='privada' && <span style={{ fontSize:'.68rem',background:'#F3F4F6',color:'#6B7280',padding:'.1rem .35rem',borderRadius:99 }}>🔒</span>}
+                {p.visibilidad==='privada' && <span style={{ fontSize:'.68rem',background:'var(--color-card-hover,#F3F4F6)',color:'var(--color-text-secondary,#6B7280)',padding:'.1rem .35rem',borderRadius:99 }}>🔒</span>}
               </div>
               <div style={{ display:'flex',alignItems:'center',gap:'.3rem' }}>
                 {pct>=100 && <AlertCircle size={16} color="#DC2626"/>}
@@ -125,7 +125,7 @@ export default function Presupuestos() {
             </div>
           </div>
         </div>
-        <div style={{ height:8,background:'#F3F4F6',borderRadius:99 }}>
+        <div style={{ height:8,background:'var(--color-card-hover,#F3F4F6)',borderRadius:99 }}>
           <div style={{ height:'100%',borderRadius:99,width:`${Math.min(pct,100)}%`,background:bgBar }}/>
         </div>
         <p style={{ fontSize:'.75rem',marginTop:'.4rem',color:pct>=100?'#DC2626':'#6B7280' }}>
@@ -238,5 +238,5 @@ const S = {
   secLabel: { fontSize:'.75rem',fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:'.5rem' },
   closeBtn: { background:'none',border:'none',cursor:'pointer',color:'#9CA3AF',display:'flex' },
   errorBox: { background:'#FEE2E2',color:'#DC2626',borderRadius:8,padding:'.65rem .9rem',fontSize:'.875rem',marginBottom:'.75rem' },
-  empty: { display:'flex',flexDirection:'column',alignItems:'center',gap:'.75rem',padding:'3rem 1rem',textAlign:'center',color:'#1F2937' },
+  empty: { display:'flex',flexDirection:'column',alignItems:'center',gap:'.75rem',padding:'3rem 1rem',textAlign:'center',color:'var(--color-text,#1F2937)' },
 }

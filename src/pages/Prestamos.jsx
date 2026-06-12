@@ -192,7 +192,7 @@ function PrestamoCard({ p, expanded, amort, onToggle, onEdit, puedeEditar }) {
           <div onClick={onToggle} style={{ flex:1 }}>
             <div style={{ display:'flex',alignItems:'center',gap:'.5rem' }}>
               <p style={{ fontWeight:700 }}>{p.nombre}</p>
-              {p.visibilidad==='privada' && <span style={{ fontSize:'.68rem',background:'#F3F4F6',color:'#6B7280',padding:'.15rem .4rem',borderRadius:99 }}>🔒</span>}
+              {p.visibilidad==='privada' && <span style={{ fontSize:'.68rem',background:'var(--color-card-hover,#F3F4F6)',color:'var(--color-text-secondary,#6B7280)',padding:'.15rem .4rem',borderRadius:99 }}>🔒</span>}
             </div>
             <p style={{ fontSize:'.78rem',color:'#9CA3AF' }}>Tasa: {p.tasa_anual}% · Cuota: RD$ {fmtN(Number(p.cuota_mensual))}</p>
           </div>
@@ -206,7 +206,7 @@ function PrestamoCard({ p, expanded, amort, onToggle, onEdit, puedeEditar }) {
             <span style={{ fontSize:'.78rem',color:'#9CA3AF' }}>Pagado: RD$ {fmtN(Number(p.capital_original)-Number(p.capital_pendiente))}</span>
             <span style={{ fontSize:'.78rem',fontWeight:700,color:'#2E6DA4' }}>{pct.toFixed(0)}%</span>
           </div>
-          <div style={{ height:8,background:'#F3F4F6',borderRadius:99 }}>
+          <div style={{ height:8,background:'var(--color-card-hover,#F3F4F6)',borderRadius:99 }}>
             <div style={{ height:'100%',width:`${pct}%`,background:'#2E6DA4',borderRadius:99 }}/>
           </div>
           <div className="grid-2" style={{ marginTop:'.75rem' }}>
@@ -216,17 +216,17 @@ function PrestamoCard({ p, expanded, amort, onToggle, onEdit, puedeEditar }) {
         </div>
       </div>
       {expanded && (
-        <div style={{ borderTop:'1px solid #F3F4F6' }}>
+        <div style={{ borderTop:'1px solid var(--color-border-secondary,#F3F4F6)' }}>
           <p style={{ fontSize:'.72rem',fontWeight:700,color:'#9CA3AF',padding:'.6rem 1rem .3rem',textTransform:'uppercase' }}>Próximas 12 cuotas</p>
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%',borderCollapse:'collapse',fontSize:'.78rem' }}>
-              <thead><tr style={{ background:'#F9FAFB' }}>
-                {['Mes','Cuota','Interés','Capital','Saldo'].map(h=><th key={h} style={{ padding:'.5rem .75rem',textAlign:'right',color:'#6B7280',fontWeight:600 }}>{h}</th>)}
+              <thead><tr style={{ background:'var(--color-card-hover,#F9FAFB)' }}>
+                {['Mes','Cuota','Interés','Capital','Saldo'].map(h=><th key={h} style={{ padding:'.5rem .75rem',textAlign:'right',color:'var(--color-text-secondary,#6B7280)',fontWeight:600 }}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {amort.map((f,i)=>(
-                  <tr key={i} style={{ borderTop:'1px solid #F3F4F6',background:i%2===0?'#fff':'#FAFAFA' }}>
-                    <td style={{ padding:'.5rem .75rem',textAlign:'right',color:'#6B7280' }}>{f.mes}</td>
+                  <tr key={i} style={{ borderTop:'1px solid var(--color-border-secondary,#F3F4F6)',background:i%2===0?'#fff':'#FAFAFA' }}>
+                    <td style={{ padding:'.5rem .75rem',textAlign:'right',color:'var(--color-text-secondary,#6B7280)' }}>{f.mes}</td>
                     <td style={{ padding:'.5rem .75rem',textAlign:'right',fontWeight:600 }}>{fmtN(Number(f.cuota))}</td>
                     <td style={{ padding:'.5rem .75rem',textAlign:'right',color:'#DC2626' }}>{fmtN(Number(f.interes))}</td>
                     <td style={{ padding:'.5rem .75rem',textAlign:'right',color:'#1B5E35' }}>{fmtN(Number(f.capital))}</td>
@@ -245,7 +245,7 @@ function PrestamoCard({ p, expanded, amort, onToggle, onEdit, puedeEditar }) {
 const fmtN = n => Number(n).toLocaleString('es-DO',{minimumFractionDigits:2})
 const S = {
   summaryCard: { background:'linear-gradient(135deg,#B91C1C,#DC2626)',color:'#fff',borderRadius:16,padding:'1.1rem 1.25rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:'1rem',boxShadow:'0 6px 20px rgba(185,28,28,.3)' },
-  statBox: { background:'#F9FAFB',borderRadius:10,padding:'.6rem .75rem' },
+  statBox: { background:'var(--color-card-hover,#F9FAFB)',borderRadius:10,padding:'.6rem .75rem' },
   secLabel: { fontSize:'.75rem',fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:'.5rem' },
   closeBtn: { background:'none',border:'none',cursor:'pointer',color:'#9CA3AF',display:'flex' },
   iconBtn:  { background:'none',border:'none',cursor:'pointer',display:'flex',padding:'.2rem' },

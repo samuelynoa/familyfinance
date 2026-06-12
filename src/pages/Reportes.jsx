@@ -107,8 +107,8 @@ export default function Reportes() {
               <KpiCard icon={<TrendingUp size={18}/>}  label="Familiar"  value={`RD$ ${fmtN(totalIngresosFamiliar)}`} color="#1B5E35" bg="#D4EDDA"/>
               <KpiCard icon={<TrendingUp size={18}/>}  label="Privado"   value={`RD$ ${fmtN(totalIngresosPrivado)}`}  color="#5B21B6" bg="#EDE9FE"/>
             </div>
-            <div style={{ background:'#F9FAFB', borderRadius:10, padding:'.6rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'.82rem', color:'#6B7280', fontWeight:600 }}>Total ingresos</span>
+            <div style={{ background:'var(--color-card-hover,#F9FAFB)', borderRadius:10, padding:'.6rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:'.82rem', color:'var(--color-text-secondary,#6B7280)', fontWeight:600 }}>Total ingresos</span>
               <span style={{ fontWeight:800, color:'#1B5E35' }}>RD$ {fmtN(totalIngresosTotal)}</span>
             </div>
           </div>
@@ -142,7 +142,7 @@ export default function Reportes() {
                     <span style={{ fontSize:'.85rem',fontWeight:600 }}>{label}</span>
                     <span style={{ fontSize:'.82rem',fontWeight:700,color:'#DC2626' }}>RD$ {fmtN(valor)} <span style={{ color:'#9CA3AF',fontWeight:400 }}>({pct.toFixed(0)}%)</span></span>
                   </div>
-                  <div style={{ height:6,background:'#F3F4F6',borderRadius:99 }}>
+                  <div style={{ height:6,background:'var(--color-card-hover,#F3F4F6)',borderRadius:99 }}>
                     <div style={{ height:'100%',width:`${pct}%`,background:'#2E6DA4',borderRadius:99 }}/>
                   </div>
                 </div>
@@ -155,7 +155,7 @@ export default function Reportes() {
           <div className="card" style={{ padding:0,overflow:'hidden' }}>
             {[...gastos].sort((a,b)=>(Number(b.monto_rdp)||0)-(Number(a.monto_rdp)||0)).slice(0,5).map((g,i,arr) => (
               <div key={g.id||i} style={{ display:'flex',alignItems:'center',gap:'.85rem',padding:'.8rem 1rem',borderBottom:i<arr.length-1?'1px solid #F3F4F6':'none' }}>
-                <div style={{ width:38,height:38,borderRadius:10,background:'#F3F4F6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0 }}>{ICONS[g.categoria]||'💸'}</div>
+                <div style={{ width:38,height:38,borderRadius:10,background:'var(--color-card-hover,#F3F4F6)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0 }}>{ICONS[g.categoria]||'💸'}</div>
                 <div style={{ flex:1 }}>
                   <p style={{ fontWeight:600,fontSize:'.875rem' }}>{g.comercio||g.descripcion||g.categoria}</p>
                   <p style={{ fontSize:'.72rem',color:'#9CA3AF' }}>{g.categoria} · {g.fecha}</p>
@@ -201,7 +201,7 @@ export default function Reportes() {
                           <p style={{ fontSize:'.72rem',color:'#9CA3AF' }}>{pct.toFixed(0)}%</p>
                         </div>
                       </div>
-                      <div style={{ height:5,background:'#F3F4F6',borderRadius:99 }}>
+                      <div style={{ height:5,background:'var(--color-card-hover,#F3F4F6)',borderRadius:99 }}>
                         <div style={{ height:'100%',width:`${pct}%`,background:COLORES[i%COLORES.length],borderRadius:99 }}/>
                       </div>
                     </div>
@@ -300,7 +300,7 @@ function KpiCard({ icon, label, value, color, bg }) {
 
 const fmtN = n => Number(n).toLocaleString('es-DO',{minimumFractionDigits:2})
 const S = {
-  tabs: { display:'flex',background:'#F3F4F6',borderRadius:12,padding:'.25rem',marginBottom:'1rem',gap:'.25rem' },
+  tabs: { display:'flex',background:'var(--color-card-hover,#F3F4F6)',borderRadius:12,padding:'.25rem',marginBottom:'1rem',gap:'.25rem' },
   tab:  { flex:1,padding:'.55rem .4rem',borderRadius:9,border:'none',cursor:'pointer',fontSize:'.78rem',transition:'all .15s' },
   secTitle: { fontSize:'.75rem',fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:'.6rem',marginTop:'.25rem' },
   empty: { textAlign:'center',color:'#9CA3AF',padding:'3rem 1rem',fontSize:'1.5rem' },

@@ -308,5 +308,5 @@ const S = {
   secLabel: { fontSize:'.75rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:'.5rem', display:'flex', alignItems:'center', gap:'.35rem' },
   closeBtn: { background:'none', border:'none', cursor:'pointer', color:'#9CA3AF', display:'flex' },
   errorBox: { background:'#FEE2E2', color:'#DC2626', borderRadius:8, padding:'.65rem .9rem', fontSize:'.875rem', marginBottom:'.75rem' },
-  empty: { display:'flex', flexDirection:'column', alignItems:'center', gap:'.75rem', padding:'3rem 1rem', textAlign:'center', color:'#1F2937' },
+  empty: { display:'flex', flexDirection:'column', alignItems:'center', gap:'.75rem', padding:'3rem 1rem', textAlign:'center', color:'var(--color-text,#1F2937)' },
 }

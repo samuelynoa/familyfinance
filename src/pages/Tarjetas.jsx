@@ -228,7 +228,7 @@ function TarjetaCard({ tarjeta, hideBalances }) {
       </div>
 
       {/* Barras de progreso */}
-      <div style={{ background:'#fff', padding:'1rem' }}>
+      <div style={{ background:'var(--color-card,#fff)', padding:'1rem' }}>
         {tieneRDP && (
           <Barra
             usado={Number(tarjeta.saldo_usado||0)}
@@ -262,7 +262,7 @@ function Barra({ usado, limite, label, mt }) {
         <span style={{ fontSize:'.75rem', color:'#9CA3AF', fontWeight:600 }}>{label}</span>
         <span style={{ fontSize:'.75rem', fontWeight:700, color }}>{pct.toFixed(0)}% usado</span>
       </div>
-      <div style={{ height:7, background:'#F3F4F6', borderRadius:99 }}>
+      <div style={{ height:7, background:'var(--color-card-hover,#F3F4F6)', borderRadius:99 }}>
         <div style={{ height:'100%', width:`${pct}%`, background:color, borderRadius:99, transition:'width .4s' }}/>
       </div>
       {pct > 80 && (

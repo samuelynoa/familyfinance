@@ -72,7 +72,7 @@ export default function ConfigSeguridad() {
             {pinEnabled?<><ShieldOff size={14} style={{marginRight:4,verticalAlign:'middle'}}/>Desactivar</>:<><Shield size={14} style={{marginRight:4,verticalAlign:'middle'}}/>Activar</>}
           </button>
         </div>
-        {pinEnabled&&<div style={{borderTop:'1px solid #F3F4F6',marginTop:'.85rem',paddingTop:'.85rem'}}>
+        {pinEnabled&&<div style={{borderTop:'1px solid var(--color-border-secondary,#F3F4F6)',marginTop:'.85rem',paddingTop:'.85rem'}}>
           <button onClick={()=>{setPin1([]);setPin2([]);setStep('new')}} style={{background:'none',border:'none',color:'#2E6DA4',fontWeight:600,cursor:'pointer',fontSize:'.875rem'}}>Cambiar PIN</button>
         </div>}
       </div>
@@ -106,7 +106,7 @@ export default function ConfigSeguridad() {
           </div>
           <button onClick={()=>{toggleHideBalances();flash('✓ Preferencia guardada')}}
             style={{width:52,height:28,borderRadius:99,border:'none',cursor:'pointer',background:hideBalances?'#2E6DA4':'#D1D5DB',position:'relative',transition:'background .2s'}}>
-            <div style={{position:'absolute',top:3,width:22,height:22,borderRadius:'50%',background:'#fff',transition:'left .2s',left:hideBalances?'26px':'4px',boxShadow:'0 1px 4px rgba(0,0,0,.2)'}}/>
+            <div style={{position:'absolute',top:3,width:22,height:22,borderRadius:'50%',background:'var(--color-card,#fff)',transition:'left .2s',left:hideBalances?'26px':'4px',boxShadow:'0 1px 4px rgba(0,0,0,.2)'}}/>
           </button>
         </div>
         <p style={{fontSize:'.75rem',color:'#9CA3AF',marginTop:'.5rem'}}>
@@ -119,5 +119,5 @@ export default function ConfigSeguridad() {
 
 const S = {
   secLabel: {fontSize:'.72rem',fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:'.6rem'},
-  key: {height:52,borderRadius:12,border:'1.5px solid #E5E7EB',background:'#F9FAFB',fontSize:'1.1rem',fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'},
+  key: {height:52,borderRadius:12,border:'1.5px solid var(--color-border,#E5E7EB)',background:'var(--color-card-hover,#F9FAFB)',fontSize:'1.1rem',fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'},
 }
