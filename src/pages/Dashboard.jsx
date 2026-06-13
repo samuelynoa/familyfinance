@@ -71,10 +71,10 @@ export default function Dashboard() {
   return (
     <div>
       <div style={{ marginBottom: '1.25rem' }}>
-        <p style={{ color: '#9CA3AF', fontSize: '.875rem' }}>
+        <p style={{ color: 'var(--color-text-muted,#9CA3AF)', fontSize: '.875rem' }}>
           {format(new Date(), "EEEE d 'de' MMMM", { locale: es })}
         </p>
-        <h2 style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1F2937' }}>
+        <h2 style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--color-text,#1F2937)' }}>
           Hola, {perfil?.nombre?.split(' ')[0] || 'bienvenido'} 👋
         </h2>
       </div>
@@ -151,7 +151,7 @@ function StatCard({ icon, label, value, color, bg }) {
     <div className="card" style={{ padding: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
         <div style={{ background: bg, color, borderRadius: 8, padding: '.3rem', display: 'flex' }}>{icon}</div>
-        <span style={{ fontSize: '.75rem', color: '#9CA3AF', fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: '.75rem', color: 'var(--color-text-muted,#9CA3AF)', fontWeight: 600 }}>{label}</span>
       </div>
       <p style={{ fontWeight: 800, fontSize: '1.15rem', color }}>{value}</p>
     </div>
@@ -180,14 +180,14 @@ function GastoRow({ gasto, last }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', padding: '.85rem 1rem',
-      borderBottom: last ? 'none' : '1px solid #F3F4F6', gap: '.85rem',
+      borderBottom: last ? 'none' : '1px solid var(--color-border-secondary,#F3F4F6)', gap: '.85rem',
     }}>
       <div style={styles.gastoIcon}>{icon}</div>
       <div style={{ flex: 1 }}>
-        <p style={{ fontWeight: 600, fontSize: '.9rem', color: '#1F2937' }}>
+        <p style={{ fontWeight: 600, fontSize: '.9rem', color: 'var(--color-text,#1F2937)' }}>
           {gasto.comercio || gasto.descripcion || gasto.categoria}
         </p>
-        <p style={{ fontSize: '.75rem', color: '#9CA3AF' }}>
+        <p style={{ fontSize: '.75rem', color: 'var(--color-text-muted,#9CA3AF)' }}>
           {gasto.categoria} · {gasto.tipo === 'personal' ? '👤 Personal' : '👨‍👩‍👧 Familiar'}
         </p>
       </div>
@@ -195,7 +195,7 @@ function GastoRow({ gasto, last }) {
         <p style={{ fontWeight: 700, color: '#DC2626', fontSize: '.9rem' }}>
           -{gasto.monto_rdp ? `RD$${fmtN(Number(gasto.monto_rdp))}` : `$${gasto.monto_usd}`}
         </p>
-        <p style={{ fontSize: '.72rem', color: '#9CA3AF' }}>{gasto.fecha}</p>
+        <p style={{ fontSize: '.72rem', color: 'var(--color-text-muted,#9CA3AF)' }}>{gasto.fecha}</p>
       </div>
     </div>
   )
@@ -211,7 +211,7 @@ const styles = {
     marginBottom: '1.25rem', boxShadow: '0 8px 24px rgba(30,58,95,.35)',
   },
   section:      { marginBottom: '1.5rem' },
-  sectionTitle: { fontWeight: 700, fontSize: '1rem', color: '#1F2937' },
+  sectionTitle: { fontWeight: 700, fontSize: '1rem', color: 'var(--color-text,#1F2937)' },
   seeAll: {
     display: 'flex', alignItems: 'center', gap: '.15rem',
     fontSize: '.8rem', color: '#2E6DA4', textDecoration: 'none', fontWeight: 600,
@@ -223,10 +223,10 @@ const styles = {
   },
   empty: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    gap: '.5rem', padding: '2rem', color: '#9CA3AF', fontSize: '.9rem',
+    gap: '.5rem', padding: '2rem', color: 'var(--color-text-muted,#9CA3AF)', fontSize: '.9rem',
   },
   gastoIcon: {
-    width: 40, height: 40, borderRadius: 12, background: '#F3F4F6',
+    width: 40, height: 40, borderRadius: 12, background: 'var(--color-card-hover,#F3F4F6)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: '1.2rem', flexShrink: 0,
   },
