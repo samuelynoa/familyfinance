@@ -53,7 +53,7 @@ export default function AppLayout() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', minHeight:'100dvh', background:'var(--color-bg, #F9FAFB)' }}>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100dvh', width:'100%', overflowX:'hidden', background:'var(--color-bg, #F9FAFB)' }}>
 
       <header style={{
         position:'sticky', top:0, zIndex:90,
@@ -140,7 +140,7 @@ export default function AppLayout() {
         </div>
       </header>
 
-      <main style={{ flex:1, padding:'1rem', paddingBottom:'calc(5rem + env(safe-area-inset-bottom))', maxWidth:600, margin:'0 auto', width:'100%' }}>
+      <main style={{ flex:1, padding:'1rem', paddingBottom:'calc(5rem + env(safe-area-inset-bottom))', maxWidth:600, margin:'0 auto', width:'100%', minWidth:0, overflowX:'hidden' }}>
         <Outlet/>
       </main>
 
