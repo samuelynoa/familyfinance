@@ -4,6 +4,9 @@ import { usePrefs } from '../context/PrefsContext'
 import { getCuentas, addCuenta, updateCuenta, getSheet } from '../services/sheets'
 import { Plus, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User, Eye, EyeOff } from 'lucide-react'
 
+// 1. Mover funciones auxiliares y mapas arriba para evitar errores de inicialización
+const fmtN = n => Math.abs(Number(n)).toLocaleString('es-DO', { minimumFractionDigits: 2 })
+
 const TIPOS = [
   { value: 'corriente',      label: 'Corriente / Ahorro banco', icon: '🏦' },
   { value: 'dolares',        label: 'Cuenta USD',               icon: '💵' },
@@ -17,6 +20,15 @@ const TIPOS = [
 const COLORES = ['#2E6DA4','#1B5E35','#7A4800','#5B21B6','#BE185D','#0E7490','#1E3A5F','#B91C1C']
 const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.value, t]))
 const FORM_VACIO = { nombre:'', tipo:'corriente', moneda:'RD$', balance:'', solo_consulta:false, color:COLORES[0], visibilidad:'familiar' }
+
+const S = {
+  balanceCard:{color:'#fff',borderRadius:14,padding:'1rem 1.1rem',boxShadow:'0 4px 14px rgba(0,0,0,.18)'},
+  secLabel:{fontSize:'.75rem',fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:'.5rem',display:'flex',alignItems:'center',gap:'.35rem'},
+  closeBtn:{background:'none',border:'none',cursor:'pointer',color:'#9CA3AF',display:'flex'},
+  iconBtn:{background:'none',border:'none',cursor:'pointer',display:'flex',padding:'.2rem'},
+  errorBox:{background:'#FEE2E2',color:'#DC2626',borderRadius:8,padding:'.65rem .9rem',fontSize:'.875rem',marginBottom:'.75rem'},
+  empty:{display:'flex',flexDirection:'column',alignItems:'center',gap:'.75rem',padding:'3rem 1rem',textAlign:'center'},
+}
 
 export default function Cuentas() {
   const { perfil, isAdmin }              = useAuth()
@@ -221,6 +233,8 @@ export default function Cuentas() {
 function CuentaCard({cuenta,hide,expanded,movs,onToggle,onEdit,puedeEditar}) {
   const tipo=TIPO_MAP[cuenta.tipo]||{label:cuenta.tipo,icon:'💳'}
   const balance=Number(cuenta.balance||0)
+  const monedaSimbolo = cuenta.moneda === 'USD' ? 'USD ' : 'RD$'
+
   return (
     <div className="card" style={{padding:0,overflow:'hidden',marginBottom:'.75rem'}}>
       <div style={{display:'flex',alignItems:'center',padding:'1rem',gap:'1rem'}}>
@@ -254,7 +268,9 @@ function CuentaCard({cuenta,hide,expanded,movs,onToggle,onEdit,puedeEditar}) {
             :movs.map((m,i)=>(
               <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'.6rem 1rem',borderBottom:i<movs.length-1?'1px solid #F9FAFB':'none'}}>
                 <div><p style={{fontSize:'.85rem',fontWeight:500}}>{m.desc}</p><p style={{fontSize:'.72rem',color:'#9CA3AF'}}>{m.fecha}</p></div>
-                <p style={{fontWeight:700,fontSize:'.85rem',color:m.monto>=0?'#1B5E35':'#DC2626'}}>{m.monto>=0?'+':'-'}RD${fmtN(Math.abs(m.monto))}</p>
+                <p style={{fontWeight:700,fontSize:'.85rem',color:m.monto>=0?'#1B5E35':'#DC2626'}}>
+                  {m.monto>=0?'+':'-'}{monedaSimbolo}{fmtN(Math.abs(m.monto))}
+                </p>
               </div>
             ))
           }
@@ -262,14 +278,4 @@ function CuentaCard({cuenta,hide,expanded,movs,onToggle,onEdit,puedeEditar}) {
       )}
     </div>
   )
-}
-
-const fmtN=n=>Math.abs(Number(n)).toLocaleString('es-DO',{minimumFractionDigits:2})
-const S={
-  balanceCard:{color:'#fff',borderRadius:14,padding:'1rem 1.1rem',boxShadow:'0 4px 14px rgba(0,0,0,.18)'},
-  secLabel:{fontSize:'.75rem',fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:'.5rem',display:'flex',alignItems:'center',gap:'.35rem'},
-  closeBtn:{background:'none',border:'none',cursor:'pointer',color:'#9CA3AF',display:'flex'},
-  iconBtn:{background:'none',border:'none',cursor:'pointer',display:'flex',padding:'.2rem'},
-  errorBox:{background:'#FEE2E2',color:'#DC2626',borderRadius:8,padding:'.65rem .9rem',fontSize:'.875rem',marginBottom:'.75rem'},
-  empty:{display:'flex',flexDirection:'column',alignItems:'center',gap:'.75rem',padding:'3rem 1rem',textAlign:'center'},
 }
