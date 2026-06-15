@@ -1,36 +1,68 @@
-import { NavLink } from 'react-router-dom'
-import { Home, Wallet, PlusCircle, BarChart2, Settings } from 'lucide-react'
+import { useLocation, Link } from 'react-router-dom'
+import { Home, Wallet, TrendingUp, BarChart3, Settings } from 'lucide-react'
 
-const NAV = [
-  { to: '/',             icon: Home,       label: 'Inicio'    },
-  { to: '/cuentas',      icon: Wallet,     label: 'Cuentas'   },
-  { to: '/gastos/nuevo', icon: PlusCircle, label: 'Registrar' },
-  { to: '/reportes',     icon: BarChart2,  label: 'Reportes'  },
-  { to: '/config',       icon: Settings,   label: 'Config'    },
+const NAVS = [
+  { path: '/',           label: 'Inicio',       icon: Home },
+  { path: '/cuentas',    label: 'Cuentas',      icon: Wallet },
+  { path: '/gastos',     label: 'Gastos',       icon: TrendingUp },
+  { path: '/reportes',   label: 'Reportes',     icon: BarChart3 },
+  { path: '/config',     label: 'Config',       icon: Settings },
 ]
 
 export default function BottomNav() {
+  const location = useLocation()
+
   return (
-    <nav style={S.nav}>
-      {NAV.map(({ to, icon: Icon, label }) => (
-        <NavLink key={to} to={to} end={to === '/'}
-          style={({ isActive }) => ({ ...S.item, color: isActive ? '#2E6DA4' : '#9CA3AF' })}>
-          {({ isActive }) => (
-            <>
-              <div style={{ ...S.iconWrap, background: isActive ? '#EEF5FC' : 'transparent' }}>
-                <Icon size={22} />
-              </div>
-              <span style={{ fontSize: '.68rem', fontWeight: 600 }}>{label}</span>
-            </>
-          )}
-        </NavLink>
-      ))}
+    <nav
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: 'var(--color-nav-bg, #fff)',
+        borderTop: '1px solid var(--color-border, #E5E7EB)',
+        zIndex: 85,
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          height: '4.5rem',
+          width: '100%',
+        }}
+      >
+        {NAVS.map(nav => {
+          const Icon = nav.icon
+          const isActive = location.pathname === nav.path || location.pathname.startsWith(nav.path + '/')
+          
+          return (
+            <Link
+              key={nav.path}
+              to={nav.path}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.25rem',
+                flex: 1,
+                padding: '0.5rem',
+                color: isActive ? '#2E6DA4' : 'var(--color-text-secondary, #6B7280)',
+                textDecoration: 'none',
+                transition: 'color 0.2s ease',
+              }}
+            >
+              <Icon size={24} />
+              <span style={{ fontSize: '0.65rem', fontWeight: 600, textAlign: 'center' }}>
+                {nav.label}
+              </span>
+            </Link>
+          )
+        })}
+      </div>
     </nav>
   )
-}
-
-const S = {
-  nav: { position:'fixed',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid #E5E7EB',display:'flex',padding:'.3rem 0 calc(.3rem + env(safe-area-inset-bottom))',zIndex:100 },
-  item: { flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:'.15rem',textDecoration:'none' },
-  iconWrap: { width:42,height:32,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center' },
 }
