@@ -100,9 +100,9 @@ export default function NuevoGasto() {
     load()
   }, [perfil])
 
-  // Pre-llenar formulario en modo edición — corre al montar si hay gastoEditar
+  // Pre-llenar formulario en modo edición
   useEffect(() => {
-    if (!gastoEditar) return
+    if (!gastoEditar || loading) return
     setForm({
       fecha:             gastoEditar.fecha || new Date().toISOString().split('T')[0],
       monto:             gastoEditar.monto_rdp || gastoEditar.monto_usd || '',
@@ -119,7 +119,7 @@ export default function NuevoGasto() {
       beneficiario_id:   gastoEditar.beneficiario_id || '',
     })
     setModo(MODO_MANUAL)
-  }, [gastoEditar])
+  }, [gastoEditar, loading])
 
   // ─── OCR: usuario selecciona imagen ────────────────────────────────────────
   async function handleImageSelect(e) {
@@ -454,7 +454,7 @@ export default function NuevoGasto() {
     <div>
       <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
         <h2 style={{ fontWeight: 700 }}>{modoEdicion ? '✏️ Editar gasto' : 'Nuevo gasto manual'}</h2>
-        <button onClick={() => modoEdicion ? navigate('/gastos') : setModo(MODO_SELECCION)} style={S.closeBtn}>
+        <button onClick={() => setModo(MODO_SELECCION)} style={S.closeBtn}>
           <X size={20} />
         </button>
       </div>
@@ -465,7 +465,7 @@ export default function NuevoGasto() {
         esAhorro={esAhorro} esDeuda={esDeuda}
         error={error} saving={saving}
         onSubmit={handleGuardar}
-        onCancel={() => modoEdicion ? navigate('/gastos') : setModo(MODO_SELECCION)}
+        onCancel={() => setModo(MODO_SELECCION)}
         modoConfirmar={false}
       />
     </div>
