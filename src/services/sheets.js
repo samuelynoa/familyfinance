@@ -285,7 +285,7 @@ export async function upsertComercio(nombre, categoria) {
     })
   }
 }
-**
+/**
  * Actualiza un gasto existente. Registra auditoría de edición.
  * Ajusta balances si cambia el monto o la cuenta.
  */
