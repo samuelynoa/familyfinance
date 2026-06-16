@@ -285,3 +285,147 @@ export async function upsertComercio(nombre, categoria) {
     })
   }
 }
+**
+ * Actualiza un gasto existente. Registra auditoría de edición.
+ * Ajusta balances si cambia el monto o la cuenta.
+ */
+export async function updateGasto(gastoId, nuevosDatos, { editadoPor = '', balanceAnterior = null, balanceNuevo = null } = {}) {
+  const data = await getSheet('gastos')
+  const rows = data.rows || []
+  const idx  = rows.findIndex(r => r.id === gastoId)
+  if (idx === -1) throw new Error('Gasto no encontrado')
+
+  const gastoActual = rows[idx]
+  const ahora       = new Date().toISOString()
+
+  await updateRow('gastos', idx + 2, {
+    ...gastoActual,
+    ...nuevosDatos,
+    // Auditoría
+    editado_por: editadoPor,
+    editado_en:  ahora,
+    // No borrar campos de eliminación si existen
+    eliminado_soft: gastoActual.eliminado_soft || 'false',
+  })
+
+  // Ajustar balance de cuenta si cambió el monto
+  if (balanceAnterior !== null && balanceNuevo !== null) {
+    const cuentaId = nuevosDatos.cuenta_id || gastoActual.cuenta_id
+    if (cuentaId) {
+      const cuentaData = await getSheet('cuentas')
+      const cIdx = (cuentaData.rows || []).findIndex(r => r.id === cuentaId)
+      if (cIdx !== -1) {
+        const balActual = Number(cuentaData.rows[cIdx].balance || 0)
+        // Revertir monto anterior y aplicar nuevo
+        const diff = Number(balanceAnterior) - Number(balanceNuevo)
+        await updateRow('cuentas', cIdx + 2, {
+          ...cuentaData.rows[cIdx],
+          balance: (balActual + diff).toFixed(2),
+        })
+      }
+    }
+  }
+
+  return true
+}
+
+/**
+ * Soft-delete de un gasto. Marca como eliminado sin borrar la fila.
+ * Revierte el balance de la cuenta/tarjeta.
+ */
+export async function deleteGasto(gastoId, { eliminadoPor = '' } = {}) {
+  const data = await getSheet('gastos')
+  const rows = data.rows || []
+  const idx  = rows.findIndex(r => r.id === gastoId)
+  if (idx === -1) throw new Error('Gasto no encontrado')
+
+  const gasto = rows[idx]
+  const ahora = new Date().toISOString()
+  const monto = Number(gasto.monto_rdp || gasto.monto_usd || 0)
+
+  // Marcar como eliminado
+  await updateRow('gastos', idx + 2, {
+    ...gasto,
+    eliminado_soft: 'true',
+    eliminado_por:  eliminadoPor,
+    eliminado_en:   ahora,
+  })
+
+  // Revertir balance de cuenta (si aplica)
+  if (gasto.cuenta_id) {
+    const cuentaData = await getSheet('cuentas')
+    const cIdx = (cuentaData.rows || []).findIndex(r => r.id === gasto.cuenta_id)
+    if (cIdx !== -1 && cuentaData.rows[cIdx].solo_consulta !== 'true') {
+      const balActual = Number(cuentaData.rows[cIdx].balance || 0)
+      await updateRow('cuentas', cIdx + 2, {
+        ...cuentaData.rows[cIdx],
+        balance: (balActual + monto).toFixed(2), // devolver el dinero
+      })
+    }
+  }
+
+  // Revertir saldo de tarjeta (si aplica)
+  if (gasto.tarjeta_id) {
+    const tarjData = await getSheet('tarjetas_credito')
+    const tIdx = (tarjData.rows || []).findIndex(r => r.id === gasto.tarjeta_id)
+    if (tIdx !== -1) {
+      const saldoActual = Number(tarjData.rows[tIdx].saldo_usado || 0)
+      await updateRow('tarjetas_credito', tIdx + 2, {
+        ...tarjData.rows[tIdx],
+        saldo_usado: Math.max(0, saldoActual - monto).toFixed(2),
+      })
+    }
+  }
+
+  return gasto // devolver el gasto para poder restaurarlo (undo)
+}
+
+/**
+ * Restaura un gasto eliminado (undo). Revierte el soft-delete y los balances.
+ */
+export async function restoreGasto(gastoId) {
+  const data = await getSheet('gastos')
+  const rows = data.rows || []
+  const idx  = rows.findIndex(r => r.id === gastoId)
+  if (idx === -1) throw new Error('Gasto no encontrado')
+
+  const gasto = rows[idx]
+  const monto = Number(gasto.monto_rdp || gasto.monto_usd || 0)
+
+  // Desmarcar eliminación
+  await updateRow('gastos', idx + 2, {
+    ...gasto,
+    eliminado_soft: 'false',
+    eliminado_por:  '',
+    eliminado_en:   '',
+  })
+
+  // Revertir balance de cuenta
+  if (gasto.cuenta_id) {
+    const cuentaData = await getSheet('cuentas')
+    const cIdx = (cuentaData.rows || []).findIndex(r => r.id === gasto.cuenta_id)
+    if (cIdx !== -1 && cuentaData.rows[cIdx].solo_consulta !== 'true') {
+      const balActual = Number(cuentaData.rows[cIdx].balance || 0)
+      await updateRow('cuentas', cIdx + 2, {
+        ...cuentaData.rows[cIdx],
+        balance: (balActual - monto).toFixed(2),
+      })
+    }
+  }
+
+  // Revertir saldo de tarjeta
+  if (gasto.tarjeta_id) {
+    const tarjData = await getSheet('tarjetas_credito')
+    const tIdx = (tarjData.rows || []).findIndex(r => r.id === gasto.tarjeta_id)
+    if (tIdx !== -1) {
+      const saldoActual = Number(tarjData.rows[tIdx].saldo_usado || 0)
+      await updateRow('tarjetas_credito', tIdx + 2, {
+        ...tarjData.rows[tIdx],
+        saldo_usado: (saldoActual + monto).toFixed(2),
+      })
+    }
+  }
+
+  return true
+}
+
