@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
-  getCuentas, getUsuarios, addGasto, addTransferencia, getGastos,
+  getCuentas, getUsuarios, addGasto, updateGasto, addTransferencia, getGastos,
   updateBalance, getSheet, appendRow, updateRow, getComercios, upsertComercio,
 } from '../services/sheets'
 import { processReceiptImage } from '../services/ocr'
@@ -41,6 +41,9 @@ const MODO_GUARDADO   = 'guardado'    // éxito
 export default function NuevoGasto() {
   const { perfil, isAdmin }  = useAuth()
   const navigate    = useNavigate()
+  const location    = useLocation()
+  const gastoEditar = location.state?.gastoEditar || null
+  const modoEdicion = !!gastoEditar
   const fileInputRef = useRef(null)
 
   const [modo,      setModo]     = useState(MODO_SELECCION)
@@ -96,6 +99,27 @@ export default function NuevoGasto() {
     }
     load()
   }, [perfil])
+
+  // Pre-llenar formulario en modo edición
+  useEffect(() => {
+    if (!gastoEditar || loading) return
+    setForm({
+      fecha:             gastoEditar.fecha || new Date().toISOString().split('T')[0],
+      monto:             gastoEditar.monto_rdp || gastoEditar.monto_usd || '',
+      moneda:            (gastoEditar.monto_usd && !gastoEditar.monto_rdp) ? 'USD' : 'RD$',
+      categoria:         gastoEditar.categoria || '',
+      descripcion:       gastoEditar.descripcion || '',
+      comercio:          gastoEditar.comercio || '',
+      tipo:              gastoEditar.personal_familiar || 'familiar',
+      usuario_id:        gastoEditar.usuario_id || '',
+      cuenta_id:         gastoEditar.cuenta_id || '',
+      usa_tarjeta:       !!gastoEditar.tarjeta_id,
+      tarjeta_id:        gastoEditar.tarjeta_id || '',
+      cuenta_destino_id: gastoEditar.cuenta_destino_id || '',
+      beneficiario_id:   gastoEditar.beneficiario_id || '',
+    })
+    setModo(MODO_MANUAL)
+  }, [gastoEditar, loading])
 
   // ─── OCR: usuario selecciona imagen ────────────────────────────────────────
   async function handleImageSelect(e) {
@@ -157,7 +181,32 @@ export default function NuevoGasto() {
       const montoUSD = form.moneda === 'USD' ? monto : null
       const confianza = sugerencia?.confianza || 1
 
-      // 1. Registrar gasto
+      // 1a. MODO EDICIÓN — actualizar gasto existente
+      if (modoEdicion) {
+        const montoAnterior = Number(gastoEditar.monto_rdp || gastoEditar.monto_usd || 0)
+        const montoNuevo    = montoRDP || montoUSD || 0
+        await updateGasto(gastoEditar.id, {
+          fecha:             form.fecha,
+          monto_rdp:         montoRDP,
+          monto_usd:         montoUSD,
+          categoria:         form.categoria,
+          descripcion:       form.descripcion,
+          comercio:          form.comercio,
+          tipo:              form.tipo,
+          personal_familiar: form.tipo,
+          cuenta_id:         form.usa_tarjeta ? '' : form.cuenta_id,
+          tarjeta_id:        form.usa_tarjeta ? form.tarjeta_id : '',
+        }, {
+          editadoPor:      perfil?.id,
+          balanceAnterior: montoAnterior,
+          balanceNuevo:    montoNuevo,
+        })
+        setModo(MODO_GUARDADO)
+        setTimeout(() => navigate('/gastos'), 1500)
+        return
+      }
+
+      // 1b. MODO NUEVO — registrar gasto
       await addGasto({
         fecha:             form.fecha,
         monto_rdp:         montoRDP,
@@ -404,7 +453,7 @@ export default function NuevoGasto() {
   return (
     <div>
       <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
-        <h2 style={{ fontWeight: 700 }}>Nuevo gasto manual</h2>
+        <h2 style={{ fontWeight: 700 }}>{modoEdicion ? '✏️ Editar gasto' : 'Nuevo gasto manual'}</h2>
         <button onClick={() => setModo(MODO_SELECCION)} style={S.closeBtn}>
           <X size={20} />
         </button>
@@ -620,7 +669,7 @@ function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro,
         <button type="submit" className="btn btn-primary"
           disabled={saving}
           style={{ flex: 1, padding: '.9rem', fontSize: '.95rem' }}>
-          {saving ? 'Guardando...' : modoConfirmar ? '✓ Confirmar y guardar' : '✓ Registrar gasto'}
+          {saving ? 'Guardando...' : modoEdicion ? '✓ Guardar cambios' : modoConfirmar ? '✓ Confirmar y guardar' : '✓ Registrar gasto'}
         </button>
         <button type="button" className="btn btn-secondary" onClick={onCancel}
           style={{ padding: '.9rem 1rem' }}>

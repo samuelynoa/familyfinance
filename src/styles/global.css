@@ -526,3 +526,16 @@ textarea {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* Pegar al FINAL de src/styles/global.css */
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
