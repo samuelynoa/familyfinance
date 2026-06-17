@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   getCuentas, getUsuarios, addGasto, updateGasto, addTransferencia, getGastos,
@@ -42,8 +42,9 @@ export default function NuevoGasto() {
   const { perfil, isAdmin }  = useAuth()
   const navigate    = useNavigate()
   const location    = useLocation()
+  const { id }      = useParams() // 2. Captura el ID de la URL si existe
   const gastoEditar = location.state?.gastoEditar || null
-  const modoEdicion = !!gastoEditar
+  const modoEdicion = !!gastoEditar || !!id
   const fileInputRef = useRef(null)
 
   const [modo,      setModo]     = useState(MODO_SELECCION)
