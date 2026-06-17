@@ -429,3 +429,66 @@ export async function restoreGasto(gastoId) {
   return true
 }
 
+
+// ─── Pagos de tarjeta ─────────────────────────────────────────────────────────
+
+/**
+ * Registra un pago de tarjeta de crédito.
+ * - Reduce saldo_usado de la tarjeta
+ * - Descuenta de la cuenta origen
+ * - Guarda en hoja pagos_tarjeta para historial
+ */
+export async function pagarTarjeta({ tarjetaId, cuentaId, montoRDP, montoUSD, fecha, descripcion, usuarioId }) {
+  // 1. Actualizar saldo_usado de la tarjeta
+  const tarjData = await getSheet('tarjetas_credito')
+  const tIdx = (tarjData.rows || []).findIndex(r => r.id === tarjetaId)
+  if (tIdx === -1) throw new Error('Tarjeta no encontrada')
+  const tarjeta = tarjData.rows[tIdx]
+
+  const nuevoSaldoRDP = Math.max(0, Number(tarjeta.saldo_usado || 0) - (montoRDP || 0))
+  const nuevoSaldoUSD = Math.max(0, Number(tarjeta.saldo_usado_usd || 0) - (montoUSD || 0))
+
+  await updateRow('tarjetas_credito', tIdx + 2, {
+    ...tarjeta,
+    saldo_usado:     montoRDP ? nuevoSaldoRDP.toFixed(2) : tarjeta.saldo_usado,
+    saldo_usado_usd: montoUSD ? nuevoSaldoUSD.toFixed(2) : tarjeta.saldo_usado_usd,
+  })
+
+  // 2. Descontar de cuenta origen (si se especificó)
+  if (cuentaId) {
+    const cuentaData = await getSheet('cuentas')
+    const cIdx = (cuentaData.rows || []).findIndex(r => r.id === cuentaId)
+    if (cIdx !== -1 && cuentaData.rows[cIdx].solo_consulta !== 'true') {
+      const balActual = Number(cuentaData.rows[cIdx].balance || 0)
+      const monto     = montoRDP || montoUSD || 0
+      await updateRow('cuentas', cIdx + 2, {
+        ...cuentaData.rows[cIdx],
+        balance: (balActual - monto).toFixed(2),
+      })
+    }
+  }
+
+  // 3. Registrar en hoja pagos_tarjeta para historial
+  await appendRow('pagos_tarjeta', {
+    id:          `pt_${Date.now()}`,
+    fecha:       fecha || new Date().toISOString().split('T')[0],
+    tarjeta_id:  tarjetaId,
+    cuenta_id:   cuentaId || '',
+    monto_rdp:   montoRDP || '',
+    monto_usd:   montoUSD || '',
+    descripcion: descripcion || 'Pago de tarjeta',
+    usuario_id:  usuarioId || '',
+  })
+
+  return { nuevoSaldoRDP, nuevoSaldoUSD }
+}
+
+/**
+ * Obtiene el historial de pagos de una tarjeta específica
+ */
+export async function getPagosTarjeta(tarjetaId) {
+  const data = await getSheet('pagos_tarjeta')
+  return (data.rows || [])
+    .filter(r => r.tarjeta_id === tarjetaId)
+    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+}
