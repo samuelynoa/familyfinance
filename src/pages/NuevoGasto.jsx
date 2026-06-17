@@ -37,6 +37,7 @@ const MODO_OCR        = 'ocr'         // procesando imagen
 const MODO_CONFIRMAR  = 'confirmar'   // IA sugiere, usuario confirma
 const MODO_MANUAL     = 'manual'      // formulario manual
 const MODO_GUARDADO   = 'guardado'    // éxito
+const modoEdicion = !!gastoEditar || !!id
 
 export default function NuevoGasto() {
   const { perfil, isAdmin }  = useAuth()
@@ -442,6 +443,7 @@ export default function NuevoGasto() {
         form={form} setForm={setForm}
         cuentas={cuentas} usuarios={usuarios} tarjetas={tarjetas}
         esAhorro={esAhorro} esDeuda={esDeuda}
+        modoEdicion={modoEdicion}
         error={error} saving={saving}
         onSubmit={handleGuardar}
         onCancel={() => { setModo(MODO_SELECCION); setImagenPreview(null) }}
@@ -474,7 +476,7 @@ export default function NuevoGasto() {
 }
 
 // ─── Componente: formulario reutilizable ──────────────────────────────────────
-function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro, esDeuda, error, saving, onSubmit, onCancel, modoConfirmar }) {
+function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro, esDeuda, error, saving, onSubmit, onCancel, modoConfirmar, modoEdicion }) {
   const [showCategorias, setShowCategorias] = useState(!modoConfirmar || !form.categoria)
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const cuentasOp = cuentas.filter(c => c.solo_consulta !== 'true')
