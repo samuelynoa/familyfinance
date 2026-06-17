@@ -1,39 +1,55 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
-import { getSheet, appendRow } from '../services/sheets'
-import { CreditCard, Plus, X, AlertCircle } from 'lucide-react'
+import { getSheet, appendRow, getCuentas, pagarTarjeta, getPagosTarjeta } from '../services/sheets'
+import { CreditCard, Plus, X, AlertCircle, ChevronDown, ChevronUp, Wallet, Clock } from 'lucide-react'
 
 const COLORES = ['#1E3A5F','#B91C1C','#1B5E35','#5B21B6','#7A4800','#0E7490']
 const FORM0   = { nombre:'', banco:'', moneda_rdp:true, moneda_usd:false, limite_rdp:'', limite_usd:'', fecha_corte:'25', color:COLORES[0], visibilidad:'familiar' }
+const PAGO0   = { monto:'', moneda:'RD$', cuenta_id:'', fecha: new Date().toISOString().split('T')[0], descripcion:'' }
 
 export default function Tarjetas() {
-  const { perfil }          = useAuth()   // cualquier usuario puede agregar tarjetas
-  const { hideBalances }    = usePrefs()
-  const [tarjetas, setTarjetas] = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [saving,   setSaving]   = useState(false)
-  const [error,    setError]    = useState('')
-  const [form, setForm]         = useState(FORM0)
+  const { perfil, isAdmin }  = useAuth()
+  const { hideBalances }     = usePrefs()
+  const [tarjetas,  setTarjetas]  = useState([])
+  const [cuentas,   setCuentas]   = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [showForm,  setShowForm]  = useState(false)
+  const [saving,    setSaving]    = useState(false)
+  const [error,     setError]     = useState('')
+  const [form,      setForm]      = useState(FORM0)
+  // Pago
+  const [pagoTarjeta, setPagoTarjeta] = useState(null) // tarjeta seleccionada para pagar
+  const [pago,        setPago]        = useState(PAGO0)
+  const [pagando,     setPagando]     = useState(false)
+  const [pagoOk,      setPagoOk]      = useState(false)
+  const [errPago,     setErrPago]     = useState('')
+  // Historial
+  const [historialId, setHistorialId] = useState(null)
+  const [historial,   setHistorial]   = useState([])
+  const [loadingHist, setLoadingHist] = useState(false)
 
   useEffect(() => { load() }, [perfil])
 
   async function load() {
     try {
-      const data = await getSheet('tarjetas_credito')
-      // Cada usuario ve las familiares + sus privadas
-      setTarjetas((data.rows||[]).filter(r => {
+      const [tarjData, cuentaData] = await Promise.all([
+        getSheet('tarjetas_credito'),
+        getCuentas({ usuarioId: perfil?.id, isAdmin }),
+      ])
+      setTarjetas((tarjData.rows||[]).filter(r => {
         if (r.activa !== 'true') return false
-        if (r.visibilidad === 'privada') return r.owner_id === perfil?.id
+        if (r.visibilidad === 'privada') return isAdmin || r.owner_id === perfil?.id
         return true
       }))
+      setCuentas(cuentaData.filter(c => c.solo_consulta !== 'true'))
     } catch(e) { console.error(e) }
     finally { setLoading(false) }
   }
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
+  // ── Nueva tarjeta ──────────────────────────────────────────────────────────
   async function handleAdd(e) {
     e.preventDefault(); setError(''); setSaving(true)
     try {
@@ -53,11 +69,59 @@ export default function Tarjetas() {
         visibilidad:     form.visibilidad,
         owner_id:        perfil?.id || '',
       })
-      await load()
-      setShowForm(false)
-      setForm(FORM0)
+      await load(); setShowForm(false); setForm(FORM0)
     } catch(e) { setError(e.message || 'Error al guardar') }
     finally { setSaving(false) }
+  }
+
+  // ── Pago de tarjeta ────────────────────────────────────────────────────────
+  function abrirPago(tarjeta) {
+    setPagoTarjeta(tarjeta)
+    setPago({ ...PAGO0, moneda: Number(tarjeta.limite||0) > 0 ? 'RD$' : 'USD' })
+    setErrPago(''); setPagoOk(false)
+  }
+
+  async function handlePago(e) {
+    e.preventDefault(); setErrPago(''); setPagando(true)
+    try {
+      const monto = Number(pago.monto)
+      if (!monto || monto <= 0) throw new Error('El monto debe ser mayor a cero')
+
+      const montoRDP = pago.moneda === 'RD$' ? monto : null
+      const montoUSD = pago.moneda === 'USD' ? monto : null
+
+      // Validar que no exceda el saldo usado
+      const maxRDP = Number(pagoTarjeta.saldo_usado || 0)
+      const maxUSD = Number(pagoTarjeta.saldo_usado_usd || 0)
+      if (montoRDP && montoRDP > maxRDP) throw new Error(`El pago (RD$${fmtN(montoRDP)}) excede el saldo usado (RD$${fmtN(maxRDP)})`)
+      if (montoUSD && montoUSD > maxUSD) throw new Error(`El pago ($${fmtN(montoUSD)}) excede el saldo usado ($${fmtN(maxUSD)})`)
+
+      await pagarTarjeta({
+        tarjetaId:   pagoTarjeta.id,
+        cuentaId:    pago.cuenta_id || null,
+        montoRDP,
+        montoUSD,
+        fecha:       pago.fecha,
+        descripcion: pago.descripcion || `Pago ${pagoTarjeta.nombre}`,
+        usuarioId:   perfil?.id,
+      })
+
+      setPagoOk(true)
+      await load() // recargar saldos
+      setTimeout(() => { setPagoTarjeta(null); setPagoOk(false) }, 1500)
+    } catch(e) { setErrPago(e.message) }
+    finally { setPagando(false) }
+  }
+
+  // ── Historial ──────────────────────────────────────────────────────────────
+  async function toggleHistorial(tarjetaId) {
+    if (historialId === tarjetaId) { setHistorialId(null); return }
+    setHistorialId(tarjetaId); setLoadingHist(true)
+    try {
+      const pagos = await getPagosTarjeta(tarjetaId)
+      setHistorial(pagos)
+    } catch(e) { setHistorial([]) }
+    finally { setLoadingHist(false) }
   }
 
   if (loading) return <div className="spinner-center"><div className="spinner"/></div>
@@ -66,25 +130,23 @@ export default function Tarjetas() {
     <div>
       <div className="flex justify-between items-center" style={{ marginBottom:'1rem' }}>
         <h2 style={{ fontWeight:700 }}>Tarjetas de crédito</h2>
-        {/* Cualquier usuario puede agregar sus tarjetas */}
         <button className="btn btn-primary" onClick={() => setShowForm(v => !v)}>
           <Plus size={16}/> Nueva
         </button>
       </div>
 
+      {/* Form nueva tarjeta */}
       {showForm && (
         <form className="card" style={{ marginBottom:'1rem' }} onSubmit={handleAdd}>
           <div className="flex justify-between items-center" style={{ marginBottom:'1rem' }}>
             <h3 style={{ fontWeight:600 }}>Nueva tarjeta</h3>
             <button type="button" onClick={() => setShowForm(false)} style={S.close}><X size={18}/></button>
           </div>
-
           <div className="field">
             <label className="label">Nombre de la tarjeta</label>
             <input className="input" placeholder="Ej: Visa BanReservas"
               value={form.nombre} onChange={e => setF('nombre', e.target.value)} required/>
           </div>
-
           <div className="grid-2">
             <div className="field">
               <label className="label">Banco</label>
@@ -97,10 +159,8 @@ export default function Tarjetas() {
                 value={form.fecha_corte} onChange={e => setF('fecha_corte', e.target.value)}/>
             </div>
           </div>
-
-          {/* Doble saldo — límites separados */}
           <div className="field">
-            <label className="label">Monedas (activa las que apliquen)</label>
+            <label className="label">Monedas</label>
             <div style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
               {[
                 { k:'moneda_rdp', lk:'limite_rdp', label:'RD$ Pesos dominicanos', ph:'150,000' },
@@ -111,9 +171,7 @@ export default function Tarjetas() {
                     <input type="checkbox" id={k} checked={form[k]}
                       onChange={e => setF(k, e.target.checked)}
                       style={{ width:18, height:18, cursor:'pointer', accentColor:'#2E6DA4' }}/>
-                    <label htmlFor={k} style={{ fontWeight:600, fontSize:'.9rem', cursor:'pointer', color: form[k]?'#2E6DA4':'#4B5563' }}>
-                      {label}
-                    </label>
+                    <label htmlFor={k} style={{ fontWeight:600, fontSize:'.9rem', cursor:'pointer', color: form[k]?'#2E6DA4':'#4B5563' }}>{label}</label>
                   </div>
                   {form[k] && (
                     <div>
@@ -126,16 +184,14 @@ export default function Tarjetas() {
               ))}
             </div>
           </div>
-
-          {/* Visibilidad */}
           <div className="field">
             <label className="label">Visibilidad</label>
             <div style={{ display:'flex', gap:'.75rem' }}>
-              {[{ v:'familiar', l:'👨‍👩‍👧 Familiar', d:'Todos la ven' },{ v:'privada', l:'🔒 Privada', d:'Solo tú' }].map(({ v, l, d }) => (
+              {[{v:'familiar',l:'👨‍👩‍👧 Familiar',d:'Todos la ven'},{v:'privada',l:'🔒 Privada',d:'Solo tú'}].map(({v,l,d}) => (
                 <button key={v} type="button" onClick={() => setF('visibilidad', v)} style={{
                   flex:1, padding:'.65rem', borderRadius:10, border:'1.5px solid', cursor:'pointer', textAlign:'center',
-                  borderColor: form.visibilidad===v ? '#2E6DA4' : '#E5E7EB',
-                  background:  form.visibilidad===v ? '#EEF5FC' : '#fff',
+                  borderColor: form.visibilidad===v?'#2E6DA4':'#E5E7EB',
+                  background:  form.visibilidad===v?'#EEF5FC':'#fff',
                 }}>
                   <p style={{ fontWeight:700, fontSize:'.85rem', color: form.visibilidad===v?'#2E6DA4':'#1F2937' }}>{l}</p>
                   <p style={{ fontSize:'.7rem', color:'#9CA3AF', marginTop:'.1rem' }}>{d}</p>
@@ -143,32 +199,25 @@ export default function Tarjetas() {
               ))}
             </div>
           </div>
-
-          {/* Color */}
           <div className="field">
-            <label className="label">Color de la tarjeta</label>
+            <label className="label">Color</label>
             <div style={{ display:'flex', gap:'.6rem', flexWrap:'wrap' }}>
               {COLORES.map(c => (
                 <button key={c} type="button" onClick={() => setF('color', c)}
                   style={{ width:32, height:32, borderRadius:'50%', background:c, cursor:'pointer',
-                    border: form.color===c ? '3px solid #1F2937' : '2px solid #E5E7EB' }}/>
+                    border: form.color===c?'3px solid #1F2937':'2px solid #E5E7EB' }}/>
               ))}
             </div>
           </div>
-
           {error && <div style={S.err}>{error}</div>}
-
           <div style={{ display:'flex', gap:'.75rem' }}>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Guardando...' : 'Guardar tarjeta'}
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
-              Cancelar
-            </button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>{saving?'Guardando...':'Guardar tarjeta'}</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
           </div>
         </form>
       )}
 
+      {/* Lista tarjetas */}
       {tarjetas.length === 0 && !showForm ? (
         <div style={S.empty}>
           <CreditCard size={40} color="#9CA3AF"/>
@@ -177,14 +226,139 @@ export default function Tarjetas() {
         </div>
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
-          {tarjetas.map(t => <TarjetaCard key={t.id} tarjeta={t} hideBalances={hideBalances}/>)}
+          {tarjetas.map(t => (
+            <TarjetaCard key={t.id} tarjeta={t} hideBalances={hideBalances}
+              onPagar={() => abrirPago(t)}
+              onHistorial={() => toggleHistorial(t.id)}
+              historialOpen={historialId === t.id}
+              historial={historialId === t.id ? historial : []}
+              loadingHist={historialId === t.id && loadingHist}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Modal pago de tarjeta */}
+      {pagoTarjeta && (
+        <div style={S.overlay} onClick={() => !pagando && setPagoTarjeta(null)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center" style={{ marginBottom:'1rem' }}>
+              <div>
+                <p style={{ fontWeight:700, fontSize:'1rem' }}>💳 Pagar tarjeta</p>
+                <p style={{ fontSize:'.82rem', color:'#6B7280' }}>{pagoTarjeta.nombre}</p>
+              </div>
+              <button onClick={() => setPagoTarjeta(null)} style={S.close}><X size={20}/></button>
+            </div>
+
+            {/* Saldo actual */}
+            <div style={{ background:'#F9FAFB', borderRadius:10, padding:'.75rem 1rem', marginBottom:'1rem' }}>
+              <p style={{ fontSize:'.75rem', color:'#9CA3AF', marginBottom:'.3rem' }}>Saldo usado actualmente</p>
+              <div style={{ display:'flex', gap:'1.5rem' }}>
+                {Number(pagoTarjeta.limite||0) > 0 && (
+                  <div>
+                    <p style={{ fontWeight:700, color:'#DC2626' }}>RD$ {fmtN(Number(pagoTarjeta.saldo_usado||0))}</p>
+                    <p style={{ fontSize:'.72rem', color:'#9CA3AF' }}>de RD$ {fmtN(Number(pagoTarjeta.limite||0))}</p>
+                  </div>
+                )}
+                {Number(pagoTarjeta.limite_usd||0) > 0 && (
+                  <div>
+                    <p style={{ fontWeight:700, color:'#DC2626' }}>$ {fmtN(Number(pagoTarjeta.saldo_usado_usd||0))}</p>
+                    <p style={{ fontSize:'.72rem', color:'#9CA3AF' }}>de $ {fmtN(Number(pagoTarjeta.limite_usd||0))}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {pagoOk ? (
+              <div style={{ textAlign:'center', padding:'1.5rem' }}>
+                <p style={{ fontSize:'2rem', marginBottom:'.5rem' }}>✅</p>
+                <p style={{ fontWeight:700, color:'#1B5E35' }}>¡Pago registrado!</p>
+                <p style={{ fontSize:'.85rem', color:'#6B7280' }}>El saldo se actualizó correctamente</p>
+              </div>
+            ) : (
+              <form onSubmit={handlePago}>
+                {/* Moneda */}
+                <div className="field">
+                  <label className="label">Moneda del pago</label>
+                  <div style={{ display:'flex', gap:'.5rem' }}>
+                    {Number(pagoTarjeta.limite||0) > 0 && (
+                      <button type="button" onClick={() => setPago(p=>({...p, moneda:'RD$'}))}
+                        style={{ ...S.monedaBtn, borderColor: pago.moneda==='RD$'?'#2E6DA4':'#E5E7EB', background: pago.moneda==='RD$'?'#EEF5FC':'#fff', color: pago.moneda==='RD$'?'#2E6DA4':'#4B5563' }}>
+                        RD$
+                      </button>
+                    )}
+                    {Number(pagoTarjeta.limite_usd||0) > 0 && (
+                      <button type="button" onClick={() => setPago(p=>({...p, moneda:'USD'}))}
+                        style={{ ...S.monedaBtn, borderColor: pago.moneda==='USD'?'#2E6DA4':'#E5E7EB', background: pago.moneda==='USD'?'#EEF5FC':'#fff', color: pago.moneda==='USD'?'#2E6DA4':'#4B5563' }}>
+                        USD
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Monto */}
+                <div className="field">
+                  <label className="label">Monto a pagar</label>
+                  <div style={{ display:'flex', gap:'.5rem', alignItems:'center' }}>
+                    <input className="input" type="number" placeholder="0.00" step="0.01" min="0.01"
+                      value={pago.monto} onChange={e => setPago(p=>({...p, monto:e.target.value}))}
+                      style={{ fontSize:'1.1rem', fontWeight:700 }} required/>
+                    {/* Botón pago total */}
+                    <button type="button" onClick={() => {
+                      const max = pago.moneda==='RD$' ? pagoTarjeta.saldo_usado : pagoTarjeta.saldo_usado_usd
+                      setPago(p=>({...p, monto: Number(max||0).toFixed(2)}))
+                    }} style={{ flexShrink:0, padding:'.55rem .75rem', borderRadius:8, border:'1.5px solid #2E6DA4',
+                      background:'#EEF5FC', color:'#2E6DA4', fontWeight:700, fontSize:'.78rem', cursor:'pointer', whiteSpace:'nowrap' }}>
+                      Pago total
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cuenta origen */}
+                <div className="field">
+                  <label className="label">Débitar de cuenta <span style={{ color:'#9CA3AF', fontWeight:400 }}>(opcional)</span></label>
+                  <select className="input" value={pago.cuenta_id} onChange={e => setPago(p=>({...p, cuenta_id:e.target.value}))}>
+                    <option value="">Sin débito automático</option>
+                    {cuentas.map(c => (
+                      <option key={c.id} value={c.id}>{c.nombre} — {c.moneda} {fmtN(Number(c.balance||0))}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid-2">
+                  <div className="field">
+                    <label className="label">Fecha</label>
+                    <input className="input" type="date" value={pago.fecha}
+                      onChange={e => setPago(p=>({...p, fecha:e.target.value}))}/>
+                  </div>
+                  <div className="field">
+                    <label className="label">Descripción</label>
+                    <input className="input" placeholder="Opcional" value={pago.descripcion}
+                      onChange={e => setPago(p=>({...p, descripcion:e.target.value}))}/>
+                  </div>
+                </div>
+
+                {errPago && <div style={S.err}>{errPago}</div>}
+
+                <div style={{ display:'flex', gap:'.75rem' }}>
+                  <button type="submit" className="btn btn-primary" disabled={pagando} style={{ flex:1, padding:'.85rem' }}>
+                    {pagando ? 'Procesando...' : '✓ Registrar pago'}
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setPagoTarjeta(null)}>
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-function TarjetaCard({ tarjeta, hideBalances }) {
+// ── TarjetaCard ────────────────────────────────────────────────────────────────
+function TarjetaCard({ tarjeta, hideBalances, onPagar, onHistorial, historialOpen, historial, loadingHist }) {
   const tieneRDP = Number(tarjeta.limite     || 0) > 0
   const tieneUSD = Number(tarjeta.limite_usd || 0) > 0
 
@@ -199,8 +373,6 @@ function TarjetaCard({ tarjeta, hideBalances }) {
           </div>
           <CreditCard size={28} style={{ opacity:.7 }}/>
         </div>
-
-        {/* Saldos — uno o dos según monedas activas */}
         <div style={{ display:'grid', gridTemplateColumns: tieneRDP && tieneUSD ? '1fr 1fr' : '1fr', gap:'.75rem' }}>
           {tieneRDP && (
             <div>
@@ -227,28 +399,54 @@ function TarjetaCard({ tarjeta, hideBalances }) {
         </div>
       </div>
 
-      {/* Barras de progreso */}
+      {/* Barras + acciones */}
       <div style={{ background:'var(--color-card,#fff)', padding:'1rem' }}>
-        {tieneRDP && (
-          <Barra
-            usado={Number(tarjeta.saldo_usado||0)}
-            limite={Number(tarjeta.limite||0)}
-            label="RD$"/>
-        )}
-        {tieneUSD && (
-          <Barra
-            usado={Number(tarjeta.saldo_usado_usd||0)}
-            limite={Number(tarjeta.limite_usd||0)}
-            label="USD"
-            mt={tieneRDP}/>
-        )}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'.5rem' }}>
+        {tieneRDP && <Barra usado={Number(tarjeta.saldo_usado||0)} limite={Number(tarjeta.limite||0)} label="RD$"/>}
+        {tieneUSD && <Barra usado={Number(tarjeta.saldo_usado_usd||0)} limite={Number(tarjeta.limite_usd||0)} label="USD" mt={tieneRDP}/>}
+
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'.75rem' }}>
           <p style={{ fontSize:'.75rem', color:'#9CA3AF' }}>Corte día {tarjeta.fecha_corte}</p>
-          {tarjeta.visibilidad === 'privada' && (
-            <span style={{ fontSize:'.7rem', color:'#9CA3AF' }}>🔒 Privada</span>
-          )}
+          {tarjeta.visibilidad === 'privada' && <span style={{ fontSize:'.7rem', color:'#9CA3AF' }}>🔒 Privada</span>}
+        </div>
+
+        {/* Botones de acción */}
+        <div style={{ display:'flex', gap:'.6rem', marginTop:'.85rem' }}>
+          <button onClick={onPagar} style={S.actionBtn}>
+            <Wallet size={15}/> Registrar pago
+          </button>
+          <button onClick={onHistorial} style={{ ...S.actionBtn, background:'var(--color-card-hover,#F3F4F6)', color:'var(--color-text-secondary,#4B5563)' }}>
+            <Clock size={15}/> Historial
+            {historialOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+          </button>
         </div>
       </div>
+
+      {/* Historial de pagos */}
+      {historialOpen && (
+        <div style={{ borderTop:'1px solid var(--color-border-secondary,#F3F4F6)', background:'var(--color-card,#fff)' }}>
+          <p style={{ fontSize:'.72rem', fontWeight:700, color:'#9CA3AF', padding:'.6rem 1rem .3rem', textTransform:'uppercase', letterSpacing:'.05em' }}>
+            Historial de pagos
+          </p>
+          {loadingHist ? (
+            <div style={{ padding:'1rem', textAlign:'center' }}><div className="spinner" style={{ margin:'0 auto' }}/></div>
+          ) : historial.length === 0 ? (
+            <p style={{ padding:'1rem', color:'#9CA3AF', fontSize:'.875rem', textAlign:'center' }}>Sin pagos registrados</p>
+          ) : (
+            historial.map((p, i) => (
+              <div key={p.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                padding:'.65rem 1rem', borderTop: i > 0 ? '1px solid var(--color-border-secondary,#F9FAFB)' : 'none' }}>
+                <div>
+                  <p style={{ fontWeight:600, fontSize:'.875rem' }}>{p.descripcion || 'Pago de tarjeta'}</p>
+                  <p style={{ fontSize:'.72rem', color:'#9CA3AF' }}>{p.fecha}</p>
+                </div>
+                <p style={{ fontWeight:700, color:'#1B5E35', fontSize:'.875rem' }}>
+                  {p.monto_rdp ? `+RD$${fmtN(Number(p.monto_rdp))}` : `+$${fmtN(Number(p.monto_usd))}`}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -276,7 +474,11 @@ function Barra({ usado, limite, label, mt }) {
 
 const fmtN = n => Number(n).toLocaleString('es-DO', { minimumFractionDigits: 2 })
 const S = {
-  close: { background:'none', border:'none', cursor:'pointer', color:'#9CA3AF', display:'flex' },
-  err:   { background:'#FEE2E2', color:'#DC2626', borderRadius:8, padding:'.65rem .9rem', fontSize:'.875rem', marginBottom:'.75rem' },
-  empty: { display:'flex', flexDirection:'column', alignItems:'center', gap:'.75rem', padding:'3rem 1rem', textAlign:'center' },
+  close:     { background:'none', border:'none', cursor:'pointer', color:'#9CA3AF', display:'flex' },
+  err:       { background:'#FEE2E2', color:'#DC2626', borderRadius:8, padding:'.65rem .9rem', fontSize:'.875rem', marginBottom:'.75rem' },
+  empty:     { display:'flex', flexDirection:'column', alignItems:'center', gap:'.75rem', padding:'3rem 1rem', textAlign:'center' },
+  overlay:   { position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:1000, padding:'1rem' },
+  modal:     { background:'var(--color-card,#fff)', borderRadius:20, padding:'1.5rem', width:'100%', maxWidth:460, boxShadow:'0 20px 60px rgba(0,0,0,.3)', maxHeight:'90vh', overflowY:'auto' },
+  actionBtn: { display:'flex', alignItems:'center', gap:'.4rem', padding:'.55rem .85rem', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:'.8rem', background:'#EEF5FC', color:'#2E6DA4' },
+  monedaBtn: { flex:1, padding:'.6rem', borderRadius:9, border:'1.5px solid', cursor:'pointer', fontWeight:700, fontSize:'.9rem' },
 }
