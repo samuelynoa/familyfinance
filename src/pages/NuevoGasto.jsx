@@ -37,7 +37,7 @@ const MODO_OCR        = 'ocr'         // procesando imagen
 const MODO_CONFIRMAR  = 'confirmar'   // IA sugiere, usuario confirma
 const MODO_MANUAL     = 'manual'      // formulario manual
 const MODO_GUARDADO   = 'guardado'    // éxito
-const modoEdicion = !!gastoEditar || !!id
+
 
 export default function NuevoGasto() {
   const { perfil, isAdmin }  = useAuth()
