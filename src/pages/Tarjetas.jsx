@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
-import { getSheet, appendRow, getCuentas, pagarTarjeta, getPagosTarjeta } from '../services/sheets'
-import { CreditCard, Plus, X, AlertCircle, ChevronDown, ChevronUp, Wallet, Clock } from 'lucide-react'
+import { getSheet, appendRow, getCuentas, pagarTarjeta, getPagosTarjeta, softDeleteItem } from '../services/sheets'
+import { CreditCard, Plus, X, AlertCircle, ChevronDown, ChevronUp, Wallet, Clock, Trash2 } from 'lucide-react'
+import ModalConfirmarEliminar from '../components/ModalConfirmarEliminar'
 
 const COLORES = ['#1E3A5F','#B91C1C','#1B5E35','#5B21B6','#7A4800','#0E7490']
 const FORM0   = { nombre:'', banco:'', moneda_rdp:true, moneda_usd:false, limite_rdp:'', limite_usd:'', fecha_corte:'25', color:COLORES[0], visibilidad:'familiar' }
@@ -27,6 +28,8 @@ export default function Tarjetas() {
   // Historial
   const [historialId, setHistorialId] = useState(null)
   const [historial,   setHistorial]   = useState([])
+  const [eliminando,  setEliminando]  = useState(null)
+  const [gastosVinc,  setGastosVinc]  = useState(0)
   const [loadingHist, setLoadingHist] = useState(false)
 
   useEffect(() => { load() }, [perfil])
@@ -111,6 +114,22 @@ export default function Tarjetas() {
       setTimeout(() => { setPagoTarjeta(null); setPagoOk(false) }, 1500)
     } catch(e) { setErrPago(e.message) }
     finally { setPagando(false) }
+  }
+
+  // ── Eliminar tarjeta ─────────────────────────────────────────────────────────
+  async function abrirEliminar(tarjeta) {
+    setEliminando(tarjeta)
+    try {
+      const gd = await getSheet('gastos')
+      const count = (gd.rows || []).filter(r => r.tarjeta_id === tarjeta.id).length
+      setGastosVinc(count)
+    } catch { setGastosVinc(0) }
+  }
+
+  async function handleEliminar(motivo) {
+    await softDeleteItem('tarjetas_credito', eliminando.id, { eliminadoPor: perfil?.id, motivo })
+    setEliminando(null)
+    await load()
   }
 
   // ── Historial ──────────────────────────────────────────────────────────────
@@ -230,12 +249,24 @@ export default function Tarjetas() {
             <TarjetaCard key={t.id} tarjeta={t} hideBalances={hideBalances}
               onPagar={() => abrirPago(t)}
               onHistorial={() => toggleHistorial(t.id)}
+              onDelete={() => abrirEliminar(t)}
+              puedeEliminar={isAdmin || (t.visibilidad === 'privada' && t.owner_id === perfil?.id)}
               historialOpen={historialId === t.id}
               historial={historialId === t.id ? historial : []}
               loadingHist={historialId === t.id && loadingHist}
             />
           ))}
         </div>
+      )}
+
+      {eliminando && (
+        <ModalConfirmarEliminar
+          item={eliminando}
+          tipo="tarjeta"
+          onConfirm={handleEliminar}
+          onCancel={() => setEliminando(null)}
+          advertencia={gastosVinc > 0 ? `Esta tarjeta tiene ${gastosVinc} gasto(s) vinculado(s). Se desasignarán pero no se eliminarán.` : null}
+        />
       )}
 
       {/* Modal pago de tarjeta */}
@@ -358,7 +389,7 @@ export default function Tarjetas() {
 }
 
 // ── TarjetaCard ────────────────────────────────────────────────────────────────
-function TarjetaCard({ tarjeta, hideBalances, onPagar, onHistorial, historialOpen, historial, loadingHist }) {
+function TarjetaCard({ tarjeta, hideBalances, onPagar, onHistorial, onDelete, puedeEliminar, historialOpen, historial, loadingHist }) {
   const tieneRDP = Number(tarjeta.limite     || 0) > 0
   const tieneUSD = Number(tarjeta.limite_usd || 0) > 0
 
@@ -418,6 +449,11 @@ function TarjetaCard({ tarjeta, hideBalances, onPagar, onHistorial, historialOpe
             <Clock size={15}/> Historial
             {historialOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
           </button>
+          {puedeEliminar && (
+            <button onClick={onDelete} style={{ ...S.actionBtn, background:'#FEE2E2', color:'#DC2626', flex:'0 0 auto', padding:'.55rem .6rem' }}>
+              <Trash2 size={15}/>
+            </button>
+          )}
         </div>
       </div>
 

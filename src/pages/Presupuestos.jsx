@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getSheet, appendRow, updateRow, getGastos, getPresupuestos } from '../services/sheets'
-import { Plus, X, Bell, BellOff, AlertCircle, CheckCircle } from 'lucide-react'
+import { getSheet, appendRow, updateRow, getGastos, getPresupuestos, softDeleteItem } from '../services/sheets'
+import { Plus, X, Bell, BellOff, AlertCircle, CheckCircle, Trash2 } from 'lucide-react'
+import ModalConfirmarEliminar from '../components/ModalConfirmarEliminar'
 import { format } from 'date-fns'
 
 const CATEGORIAS = [
@@ -28,6 +29,7 @@ export default function Presupuestos() {
   const [form, setForm] = useState({
     categoria:'', monto_mensual_rdp:'', alerta_80:'true', alerta_100:'true', visibilidad:'familiar',
   })
+  const [eliminando, setEliminando] = useState(null)
 
   const mes = format(new Date(), 'yyyy-MM')
 
@@ -84,6 +86,12 @@ export default function Presupuestos() {
     finally { setSaving(false) }
   }
 
+  async function handleEliminar(motivo) {
+    await softDeleteItem('presupuestos', eliminando.id, { eliminadoPor: perfil?.id, motivo })
+    setEliminando(null)
+    await load()
+  }
+
   function gastoCategoria(categoria) {
     return gastosDelMes.filter(g=>g.categoria===categoria).reduce((s,g)=>s+(Number(g.monto_rdp)||0),0)
   }
@@ -117,6 +125,11 @@ export default function Presupuestos() {
                 {pct>=100 && <AlertCircle size={16} color="#DC2626"/>}
                 {pct<80   && <CheckCircle  size={16} color="#1B5E35"/>}
                 {p.alerta_80==='true'?<Bell size={14} color="#9CA3AF"/>:<BellOff size={14} color="#D1D5DB"/>}
+                {(isAdmin || (p.visibilidad === 'privada' && p.owner_id === perfil?.id)) && (
+                  <button onClick={() => setEliminando(p)} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', padding:'.1rem', marginLeft:'.2rem' }}>
+                    <Trash2 size={14} color="#DC2626"/>
+                  </button>
+                )}
               </div>
             </div>
             <div style={{ display:'flex',justifyContent:'space-between',fontSize:'.78rem',color:'#9CA3AF',marginTop:'.1rem' }}>
@@ -227,6 +240,15 @@ export default function Presupuestos() {
             </div>
           )}
         </>
+      )}
+
+      {eliminando && (
+        <ModalConfirmarEliminar
+          item={eliminando}
+          tipo="presupuesto"
+          onConfirm={handleEliminar}
+          onCancel={() => setEliminando(null)}
+        />
       )}
     </div>
   )

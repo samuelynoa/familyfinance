@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getPrestamos, addPrestamo, updatePrestamo } from '../services/sheets'
-import { Plus, X, ChevronDown, ChevronUp, TrendingDown, DollarSign, Pencil } from 'lucide-react'
+import { getPrestamos, addPrestamo, updatePrestamo, softDeleteItem, getSheet } from '../services/sheets'
+import { Plus, X, ChevronDown, ChevronUp, TrendingDown, DollarSign, Pencil, Trash2 } from 'lucide-react'
+import ModalConfirmarEliminar from '../components/ModalConfirmarEliminar'
 
 const FORM_VACIO = { nombre:'', capital_original:'', tasa_anual:'', cuota_mensual:'',
   fecha_inicio: new Date().toISOString().split('T')[0], fecha_vencimiento:'', visibilidad:'familiar' }
@@ -16,6 +17,8 @@ export default function Prestamos() {
   const [error,     setError]     = useState('')
   const [expandId,  setExpandId]  = useState(null)
   const [form, setForm] = useState(FORM_VACIO)
+  const [eliminando, setEliminando] = useState(null)
+  const [gastosVinc, setGastosVinc] = useState(0)
 
   useEffect(() => { load() }, [perfil])
 
@@ -48,6 +51,21 @@ export default function Prestamos() {
       await load(); setShowForm(false); setEditando(null); setForm(FORM_VACIO)
     } catch { setError('Error al guardar. Intenta de nuevo.') }
     finally { setSaving(false) }
+  }
+
+  async function abrirEliminar(p) {
+    setEliminando(p)
+    try {
+      const gd = await getSheet('gastos')
+      const count = (gd.rows || []).filter(r => r.prestamo_id === p.id).length
+      setGastosVinc(count)
+    } catch { setGastosVinc(0) }
+  }
+
+  async function handleEliminar(motivo) {
+    await softDeleteItem('prestamos', eliminando.id, { eliminadoPor: perfil?.id, motivo })
+    setEliminando(null)
+    await load()
   }
 
   function calcularAmortizacion(p) {
@@ -164,7 +182,8 @@ export default function Prestamos() {
               {familiares.map(p => <PrestamoCard key={p.id} p={p} expanded={expandId===p.id}
                 amort={expandId===p.id?calcularAmortizacion(p):[]}
                 onToggle={()=>setExpandId(expandId===p.id?null:p.id)}
-                onEdit={()=>abrirEditar(p)} puedeEditar={isAdmin||p.owner_id===perfil?.id}/>)}
+                onEdit={()=>abrirEditar(p)} onDelete={()=>abrirEliminar(p)}
+                puedeEditar={isAdmin||p.owner_id===perfil?.id} puedeEliminar={isAdmin}/>)}
             </div>
           )}
           {privados.length > 0 && (
@@ -173,16 +192,27 @@ export default function Prestamos() {
               {privados.map(p => <PrestamoCard key={p.id} p={p} expanded={expandId===p.id}
                 amort={expandId===p.id?calcularAmortizacion(p):[]}
                 onToggle={()=>setExpandId(expandId===p.id?null:p.id)}
-                onEdit={()=>abrirEditar(p)} puedeEditar={true}/>)}
+                onEdit={()=>abrirEditar(p)} onDelete={()=>abrirEliminar(p)}
+                puedeEditar={true} puedeEliminar={true}/>)}
             </div>
           )}
         </>
+      )}
+
+      {eliminando && (
+        <ModalConfirmarEliminar
+          item={eliminando}
+          tipo="préstamo"
+          onConfirm={handleEliminar}
+          onCancel={() => setEliminando(null)}
+          advertencia={gastosVinc > 0 ? `Este préstamo tiene ${gastosVinc} gasto(s) vinculado(s).` : null}
+        />
       )}
     </div>
   )
 }
 
-function PrestamoCard({ p, expanded, amort, onToggle, onEdit, puedeEditar }) {
+function PrestamoCard({ p, expanded, amort, onToggle, onEdit, onDelete, puedeEditar, puedeEliminar }) {
   const pct = Number(p.capital_original) > 0
     ? ((Number(p.capital_original) - Number(p.capital_pendiente)) / Number(p.capital_original)) * 100 : 0
   return (
@@ -198,6 +228,7 @@ function PrestamoCard({ p, expanded, amort, onToggle, onEdit, puedeEditar }) {
           </div>
           <div style={{ display:'flex',alignItems:'center',gap:'.4rem' }}>
             {puedeEditar && <button onClick={onEdit} style={S.iconBtn}><Pencil size={15} color="#2E6DA4"/></button>}
+            {puedeEliminar && <button onClick={onDelete} style={S.iconBtn}><Trash2 size={15} color="#DC2626"/></button>}
             <button onClick={onToggle} style={S.iconBtn}>{expanded?<ChevronUp size={18} color="#9CA3AF"/>:<ChevronDown size={18} color="#9CA3AF"/>}</button>
           </div>
         </div>

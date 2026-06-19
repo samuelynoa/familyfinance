@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
-import { getCuentas, addCuenta, updateCuenta, getSheet } from '../services/sheets'
-import { Plus, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User, Eye, EyeOff } from 'lucide-react'
+import { getCuentas, addCuenta, updateCuenta, getSheet, softDeleteItem } from '../services/sheets'
+import { Plus, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User, Eye, EyeOff, Trash2 } from 'lucide-react'
+import ModalConfirmarEliminar from '../components/ModalConfirmarEliminar'
 
 // 1. Mover funciones auxiliares y mapas arriba para evitar errores de inicialización
 const fmtN = n => Math.abs(Number(n)).toLocaleString('es-DO', { minimumFractionDigits: 2 })
@@ -42,6 +43,8 @@ export default function Cuentas() {
   const [expandId,     setExpandId]     = useState(null)
   const [movimientos,  setMovimientos]  = useState([])
   const [form, setForm] = useState(FORM_VACIO)
+  const [eliminando,   setEliminando]   = useState(null) // cuenta a confirmar eliminar
+  const [gastosVinculados, setGastosVinculados] = useState(0)
 
   useEffect(() => { load() }, [perfil])
 
@@ -75,6 +78,21 @@ export default function Cuentas() {
       await load(); setShowForm(false); setEditando(null); setForm(FORM_VACIO)
     } catch { setError('Error al guardar. Intenta de nuevo.') }
     finally { setSaving(false) }
+  }
+
+  async function abrirEliminar(cuenta) {
+    setEliminando(cuenta)
+    try {
+      const gd = await getSheet('gastos')
+      const count = (gd.rows || []).filter(r => r.cuenta_id === cuenta.id || r.cuenta_destino_id === cuenta.id).length
+      setGastosVinculados(count)
+    } catch { setGastosVinculados(0) }
+  }
+
+  async function handleEliminar(motivo) {
+    await softDeleteItem('cuentas', eliminando.id, { eliminadoPor: perfil?.id, motivo })
+    setEliminando(null)
+    await load()
   }
 
   async function toggleExpand(cuentaId) {
@@ -208,8 +226,8 @@ export default function Cuentas() {
           <p style={S.secLabel}><Users size={13}/> Cuentas familiares</p>
           {familiares.map(c=><CuentaCard key={c.id} cuenta={c} hide={hideBalances}
             expanded={expandId===c.id} movs={expandId===c.id?movimientos:[]}
-            onToggle={()=>toggleExpand(c.id)} onEdit={()=>abrirEditar(c)}
-            puedeEditar={isAdmin||c.owner_id===perfil?.id}/>)}
+            onToggle={()=>toggleExpand(c.id)} onEdit={()=>abrirEditar(c)} onDelete={()=>abrirEliminar(c)}
+            puedeEditar={isAdmin||c.owner_id===perfil?.id} puedeEliminar={isAdmin}/>)}
         </div>
       )}
       {privadas.length>0&&(
@@ -217,7 +235,8 @@ export default function Cuentas() {
           <p style={S.secLabel}><Lock size={13}/> Mis cuentas privadas</p>
           {privadas.map(c=><CuentaCard key={c.id} cuenta={c} hide={hideBalances}
             expanded={expandId===c.id} movs={expandId===c.id?movimientos:[]}
-            onToggle={()=>toggleExpand(c.id)} onEdit={()=>abrirEditar(c)} puedeEditar={true}/>)}
+            onToggle={()=>toggleExpand(c.id)} onEdit={()=>abrirEditar(c)} onDelete={()=>abrirEliminar(c)}
+            puedeEditar={true} puedeEliminar={true}/>)}
         </div>
       )}
       {cuentas.length===0&&!showForm&&(
@@ -226,11 +245,21 @@ export default function Cuentas() {
           <p style={{fontSize:'.875rem',color:'#9CA3AF'}}>Crea tu primera cuenta</p>
         </div>
       )}
+
+      {eliminando && (
+        <ModalConfirmarEliminar
+          item={eliminando}
+          tipo="cuenta"
+          onConfirm={handleEliminar}
+          onCancel={() => setEliminando(null)}
+          advertencia={gastosVinculados > 0 ? `Esta cuenta tiene ${gastosVinculados} gasto(s) vinculado(s). Se desasignarán pero no se eliminarán.` : null}
+        />
+      )}
     </div>
   )
 }
 
-function CuentaCard({cuenta,hide,expanded,movs,onToggle,onEdit,puedeEditar}) {
+function CuentaCard({cuenta,hide,expanded,movs,onToggle,onEdit,onDelete,puedeEditar,puedeEliminar}) {
   const tipo=TIPO_MAP[cuenta.tipo]||{label:cuenta.tipo,icon:'💳'}
   const balance=Number(cuenta.balance||0)
   const monedaSimbolo = cuenta.moneda === 'USD' ? 'USD ' : 'RD$'
@@ -257,6 +286,7 @@ function CuentaCard({cuenta,hide,expanded,movs,onToggle,onEdit,puedeEditar}) {
         </div>
         <div style={{display:'flex',flexDirection:'column',gap:'.3rem',flexShrink:0}}>
           {puedeEditar&&<button onClick={onEdit} style={{...S.iconBtn,color:'#2E6DA4'}}><Pencil size={15}/></button>}
+          {puedeEliminar&&<button onClick={onDelete} style={{...S.iconBtn,color:'#DC2626'}}><Trash2 size={15}/></button>}
           <button onClick={onToggle} style={{...S.iconBtn,color:'#9CA3AF'}}>{expanded?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</button>
         </div>
       </div>
