@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Settings, CreditCard, TrendingDown, PieChart, Users, TrendingUp, Shield } from 'lucide-react'
+import { Settings, CreditCard, TrendingDown, PieChart, Users, TrendingUp, Shield, Trash2 } from 'lucide-react'
 
 export function Config() {
   return (
