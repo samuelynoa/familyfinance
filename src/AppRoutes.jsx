@@ -16,6 +16,7 @@ import Ingresos from './pages/Ingresos'
 import Reportes from './pages/Reportes'
 import ConfigPin from './pages/ConfigPin'
 import { Config } from './pages/Placeholders'
+import Eliminados from './pages/Eliminados'
 
 function RequireAuth({ children }) {
   const { firebaseUser, loading } = useAuth()
@@ -49,6 +50,7 @@ export default function AppRoutes() {
         <Route path="config"            element={<Config/>}/>
         <Route path="config/usuarios"   element={<Usuarios/>}/>
         <Route path="config/seguridad"  element={<ConfigPin/>}/>
+        <Route path="config/eliminados" element={<Eliminados/>}/>
       </Route>
       <Route path="*" element={<Navigate to="/" replace/>}/>
     </Routes>
