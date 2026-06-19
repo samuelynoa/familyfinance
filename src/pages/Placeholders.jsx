@@ -14,6 +14,7 @@ export function Config() {
           { to:'/deudas',           icon:Users,        label:'Deudas internas'       },
           { to:'/ingresos',         icon:TrendingUp,   label:'Ingresos'              },
           { to:'/config/seguridad', icon:Shield,       label:'Seguridad (PIN)'       },
+          { to:'/config/eliminados', icon: Trash2, label:'Elementos eliminados' },
         ].map(({ to, icon:Icon, label }, i) => (
           <Link key={to} to={to} style={{ display:'flex',alignItems:'center',gap:'1rem',textDecoration:'none',color:'var(--color-text,#1F2937)',padding:'1rem 1.25rem',borderTop:i>0?'1px solid #F3F4F6':'none' }}>
             <Icon size={20} color="#2E6DA4"/>
