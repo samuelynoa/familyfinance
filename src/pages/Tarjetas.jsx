@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
-import { getSheet, appendRow, getCuentas, pagarTarjeta, getPagosTarjeta, softDeleteItem } from '../services/sheets'
-import { CreditCard, Plus, X, AlertCircle, ChevronDown, ChevronUp, Wallet, Clock, Trash2 } from 'lucide-react'
+import { getSheet, appendRow, updateRow, getCuentas, pagarTarjeta, getPagosTarjeta, softDeleteItem } from '../services/sheets'
+import { CreditCard, Plus, X, AlertCircle, ChevronDown, ChevronUp, Wallet, Clock, Trash2, Pencil } from 'lucide-react'
 import ModalConfirmarEliminar from '../components/ModalConfirmarEliminar'
 
 const COLORES = ['#1E3A5F','#B91C1C','#1B5E35','#5B21B6','#7A4800','#0E7490']
@@ -19,6 +19,7 @@ export default function Tarjetas() {
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
   const [form,      setForm]      = useState(FORM0)
+  const [editando,  setEditando]  = useState(null)
   // Pago
   const [pagoTarjeta, setPagoTarjeta] = useState(null) // tarjeta seleccionada para pagar
   const [pago,        setPago]        = useState(PAGO0)
@@ -52,27 +53,61 @@ export default function Tarjetas() {
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
-  // ── Nueva tarjeta ──────────────────────────────────────────────────────────
+  function abrirEditar(t) {
+    setEditando(t)
+    setForm({
+      nombre:      t.nombre,
+      banco:       t.banco || '',
+      moneda_rdp:  Number(t.limite || 0) > 0,
+      moneda_usd:  Number(t.limite_usd || 0) > 0,
+      limite_rdp:  t.limite || '',
+      limite_usd:  t.limite_usd || '',
+      fecha_corte: t.fecha_corte || '25',
+      color:       t.color || COLORES[0],
+      visibilidad: t.visibilidad || 'familiar',
+    })
+    setError('')
+    setShowForm(true)
+  }
+
+  // ── Nueva / Editar tarjeta ─────────────────────────────────────────────────
   async function handleAdd(e) {
     e.preventDefault(); setError(''); setSaving(true)
     try {
       if (!form.moneda_rdp && !form.moneda_usd) throw new Error('Selecciona al menos una moneda')
-      await appendRow('tarjetas_credito', {
-        id:              `tc_${Date.now()}`,
-        nombre:          form.nombre,
-        banco:           form.banco,
-        limite:          form.moneda_rdp ? form.limite_rdp : '0',
-        saldo_usado:     '0',
-        limite_usd:      form.moneda_usd ? form.limite_usd : '0',
-        saldo_usado_usd: '0',
-        fecha_corte:     form.fecha_corte,
-        moneda:          form.moneda_rdp ? 'RD$' : 'USD',
-        activa:          'true',
-        color:           form.color,
-        visibilidad:     form.visibilidad,
-        owner_id:        perfil?.id || '',
-      })
-      await load(); setShowForm(false); setForm(FORM0)
+
+      if (editando) {
+        const data = await getSheet('tarjetas_credito')
+        const idx  = (data.rows || []).findIndex(r => r.id === editando.id)
+        if (idx === -1) throw new Error('Tarjeta no encontrada')
+        await updateRow('tarjetas_credito', idx + 2, {
+          ...editando,
+          nombre:      form.nombre,
+          banco:       form.banco,
+          limite:      form.moneda_rdp ? (form.limite_rdp || editando.limite) : '0',
+          limite_usd:  form.moneda_usd ? (form.limite_usd || editando.limite_usd) : '0',
+          fecha_corte: form.fecha_corte,
+          color:       form.color,
+          visibilidad: form.visibilidad,
+        })
+      } else {
+        await appendRow('tarjetas_credito', {
+          id:              `tc_${Date.now()}`,
+          nombre:          form.nombre,
+          banco:           form.banco,
+          limite:          form.moneda_rdp ? form.limite_rdp : '0',
+          saldo_usado:     '0',
+          limite_usd:      form.moneda_usd ? form.limite_usd : '0',
+          saldo_usado_usd: '0',
+          fecha_corte:     form.fecha_corte,
+          moneda:          form.moneda_rdp ? 'RD$' : 'USD',
+          activa:          'true',
+          color:           form.color,
+          visibilidad:     form.visibilidad,
+          owner_id:        perfil?.id || '',
+        })
+      }
+      await load(); setShowForm(false); setForm(FORM0); setEditando(null)
     } catch(e) { setError(e.message || 'Error al guardar') }
     finally { setSaving(false) }
   }
@@ -158,7 +193,7 @@ export default function Tarjetas() {
       {showForm && (
         <form className="card" style={{ marginBottom:'1rem' }} onSubmit={handleAdd}>
           <div className="flex justify-between items-center" style={{ marginBottom:'1rem' }}>
-            <h3 style={{ fontWeight:600 }}>Nueva tarjeta</h3>
+            <h3 style={{ fontWeight:600 }}>{editando ? '✏️ Editar tarjeta' : 'Nueva tarjeta'}</h3>
             <button type="button" onClick={() => setShowForm(false)} style={S.close}><X size={18}/></button>
           </div>
           <div className="field">
@@ -230,8 +265,8 @@ export default function Tarjetas() {
           </div>
           {error && <div style={S.err}>{error}</div>}
           <div style={{ display:'flex', gap:'.75rem' }}>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving?'Guardando...':'Guardar tarjeta'}</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Guardando...' : editando ? 'Guardar cambios' : 'Guardar tarjeta'}</button>
+            <button type="button" className="btn btn-secondary" onClick={() => { setShowForm(false); setEditando(null) }}>Cancelar</button>
           </div>
         </form>
       )}
@@ -248,8 +283,10 @@ export default function Tarjetas() {
           {tarjetas.map(t => (
             <TarjetaCard key={t.id} tarjeta={t} hideBalances={hideBalances}
               onPagar={() => abrirPago(t)}
+              onEditar={() => abrirEditar(t)}
               onHistorial={() => toggleHistorial(t.id)}
               onDelete={() => abrirEliminar(t)}
+              puedeEditar={isAdmin || t.owner_id === perfil?.id}
               puedeEliminar={isAdmin || (t.visibilidad === 'privada' && t.owner_id === perfil?.id)}
               historialOpen={historialId === t.id}
               historial={historialId === t.id ? historial : []}
@@ -389,7 +426,7 @@ export default function Tarjetas() {
 }
 
 // ── TarjetaCard ────────────────────────────────────────────────────────────────
-function TarjetaCard({ tarjeta, hideBalances, onPagar, onHistorial, onDelete, puedeEliminar, historialOpen, historial, loadingHist }) {
+function TarjetaCard({ tarjeta, hideBalances, onPagar, onEditar, onHistorial, onDelete, puedeEditar, puedeEliminar, historialOpen, historial, loadingHist }) {
   const tieneRDP = Number(tarjeta.limite     || 0) > 0
   const tieneUSD = Number(tarjeta.limite_usd || 0) > 0
 
@@ -445,6 +482,11 @@ function TarjetaCard({ tarjeta, hideBalances, onPagar, onHistorial, onDelete, pu
           <button onClick={onPagar} style={S.actionBtn}>
             <Wallet size={15}/> Registrar pago
           </button>
+          {puedeEditar && (
+            <button onClick={onEditar} style={{ ...S.actionBtn, background:'var(--color-card-hover,#F3F4F6)', color:'#2E6DA4', flex:'0 0 auto', padding:'.55rem .6rem' }}>
+              <Pencil size={15}/>
+            </button>
+          )}
           <button onClick={onHistorial} style={{ ...S.actionBtn, background:'var(--color-card-hover,#F3F4F6)', color:'var(--color-text-secondary,#4B5563)' }}>
             <Clock size={15}/> Historial
             {historialOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}

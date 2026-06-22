@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
-import { getCuentas, addCuenta, updateCuenta, getSheet, softDeleteItem } from '../services/sheets'
-import { Plus, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User, Eye, EyeOff, Trash2 } from 'lucide-react'
+import { getCuentas, addCuenta, updateCuenta, getSheet, softDeleteItem, addTransferencia, updateBalance } from '../services/sheets'
+import { Plus, Wallet, Lock, ChevronDown, ChevronUp, X, Pencil, Users, User, Eye, EyeOff, Trash2, ArrowLeftRight } from 'lucide-react'
 import ModalConfirmarEliminar from '../components/ModalConfirmarEliminar'
 
 // 1. Mover funciones auxiliares y mapas arriba para evitar errores de inicialización
@@ -29,6 +29,8 @@ const S = {
   iconBtn:{background:'none',border:'none',cursor:'pointer',display:'flex',padding:'.2rem'},
   errorBox:{background:'#FEE2E2',color:'#DC2626',borderRadius:8,padding:'.65rem .9rem',fontSize:'.875rem',marginBottom:'.75rem'},
   empty:{display:'flex',flexDirection:'column',alignItems:'center',gap:'.75rem',padding:'3rem 1rem',textAlign:'center'},
+  overlay:{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:1000,padding:'1rem'},
+  modal:{background:'var(--color-card,#fff)',borderRadius:20,padding:'1.5rem',width:'100%',maxWidth:440,boxShadow:'0 20px 60px rgba(0,0,0,.3)',maxHeight:'90vh',overflowY:'auto'},
 }
 
 export default function Cuentas() {
@@ -45,6 +47,12 @@ export default function Cuentas() {
   const [form, setForm] = useState(FORM_VACIO)
   const [eliminando,   setEliminando]   = useState(null) // cuenta a confirmar eliminar
   const [gastosVinculados, setGastosVinculados] = useState(0)
+  // Transferencia entre cuentas
+  const [showTransfer, setShowTransfer] = useState(false)
+  const [transfer,     setTransfer]     = useState({ origen_id:'', destino_id:'', monto:'', descripcion:'', fecha: new Date().toISOString().split('T')[0] })
+  const [transferring, setTransferring] = useState(false)
+  const [errTransfer,  setErrTransfer]  = useState('')
+  const [transferOk,   setTransferOk]   = useState(false)
 
   useEffect(() => { load() }, [perfil])
 
@@ -95,6 +103,52 @@ export default function Cuentas() {
     await load()
   }
 
+  async function handleTransfer(e) {
+    e.preventDefault(); setErrTransfer(''); setTransferring(true)
+    try {
+      const monto = Number(transfer.monto)
+      if (!monto || monto <= 0) throw new Error('El monto debe ser mayor a cero')
+      if (!transfer.origen_id)  throw new Error('Selecciona la cuenta de origen')
+      if (!transfer.destino_id) throw new Error('Selecciona la cuenta de destino')
+      if (transfer.origen_id === transfer.destino_id) throw new Error('Origen y destino deben ser cuentas diferentes')
+
+      const origen  = cuentas.find(c => c.id === transfer.origen_id)
+      const destino = cuentas.find(c => c.id === transfer.destino_id)
+      if (!origen)  throw new Error('Cuenta de origen no encontrada')
+      if (!destino) throw new Error('Cuenta de destino no encontrada')
+
+      const balOrigen = Number(origen.balance || 0)
+      if (monto > balOrigen) throw new Error(`Saldo insuficiente. Disponible: ${origen.moneda === 'USD' ? '$' : 'RD$'} ${fmtN(balOrigen)}`)
+
+      // Actualizar balances
+      await Promise.all([
+        updateBalance(transfer.origen_id,  balOrigen - monto),
+        updateBalance(transfer.destino_id, Number(destino.balance || 0) + monto),
+      ])
+
+      // Registrar en hoja transferencias
+      await addTransferencia({
+        fecha:             transfer.fecha,
+        cuenta_origen_id:  transfer.origen_id,
+        cuenta_destino_id: transfer.destino_id,
+        monto,
+        moneda:            origen.moneda,
+        tipo:              'transferencia',
+        descripcion:       transfer.descripcion || `Transferencia ${origen.nombre} → ${destino.nombre}`,
+        usuario_id:        perfil?.id || '',
+      })
+
+      setTransferOk(true)
+      await load()
+      setTimeout(() => {
+        setTransferOk(false)
+        setShowTransfer(false)
+        setTransfer({ origen_id:'', destino_id:'', monto:'', descripcion:'', fecha: new Date().toISOString().split('T')[0] })
+      }, 1500)
+    } catch(e) { setErrTransfer(e.message) }
+    finally { setTransferring(false) }
+  }
+
   async function toggleExpand(cuentaId) {
     if (expandId===cuentaId) { setExpandId(null); return }
     setExpandId(cuentaId)
@@ -125,6 +179,9 @@ export default function Cuentas() {
         <div style={{display:'flex',gap:'.5rem'}}>
           <button className="btn btn-secondary" style={{padding:'.5rem .7rem'}} onClick={toggleHideBalances}>
             {hideBalances?<Eye size={18}/>:<EyeOff size={18}/>}
+          </button>
+          <button className="btn btn-secondary" style={{padding:'.5rem .7rem'}} onClick={() => setShowTransfer(true)} title="Transferir entre cuentas">
+            <ArrowLeftRight size={18}/>
           </button>
           <button className="btn btn-primary" onClick={abrirNueva}><Plus size={16}/> Nueva</button>
         </div>
@@ -254,6 +311,88 @@ export default function Cuentas() {
           onCancel={() => setEliminando(null)}
           advertencia={gastosVinculados > 0 ? `Esta cuenta tiene ${gastosVinculados} gasto(s) vinculado(s). Se desasignarán pero no se eliminarán.` : null}
         />
+      )}
+
+      {/* Modal transferencia */}
+      {showTransfer && (
+        <div style={S.overlay} onClick={() => !transferring && setShowTransfer(false)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center" style={{ marginBottom:'1rem' }}>
+              <div>
+                <p style={{ fontWeight:700, fontSize:'1rem' }}>↔️ Transferencia</p>
+                <p style={{ fontSize:'.82rem', color:'#6B7280' }}>Entre tus cuentas</p>
+              </div>
+              <button onClick={() => setShowTransfer(false)} style={S.closeBtn}><X size={20}/></button>
+            </div>
+
+            {transferOk ? (
+              <div style={{ textAlign:'center', padding:'1.5rem' }}>
+                <p style={{ fontSize:'2rem', marginBottom:'.5rem' }}>✅</p>
+                <p style={{ fontWeight:700, color:'#1B5E35' }}>¡Transferencia realizada!</p>
+              </div>
+            ) : (
+              <form onSubmit={handleTransfer}>
+                <div className="field">
+                  <label className="label">Cuenta origen</label>
+                  <select className="input" value={transfer.origen_id}
+                    onChange={e => setTransfer(t => ({ ...t, origen_id: e.target.value }))} required>
+                    <option value="">Seleccionar cuenta</option>
+                    {cuentas.filter(c => c.solo_consulta !== 'true').map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre} — {c.moneda === 'USD' ? '$' : 'RD$'} {fmtN(Number(c.balance||0))}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="field">
+                  <label className="label">Cuenta destino</label>
+                  <select className="input" value={transfer.destino_id}
+                    onChange={e => setTransfer(t => ({ ...t, destino_id: e.target.value }))} required>
+                    <option value="">Seleccionar cuenta</option>
+                    {cuentas.filter(c => c.id !== transfer.origen_id).map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre} — {c.moneda === 'USD' ? '$' : 'RD$'} {fmtN(Number(c.balance||0))}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid-2">
+                  <div className="field">
+                    <label className="label">Monto</label>
+                    <input className="input" type="number" placeholder="0.00" step="0.01" min="0.01"
+                      value={transfer.monto} onChange={e => setTransfer(t => ({ ...t, monto: e.target.value }))}
+                      style={{ fontSize:'1.05rem', fontWeight:700 }} required/>
+                  </div>
+                  <div className="field">
+                    <label className="label">Fecha</label>
+                    <input className="input" type="date" value={transfer.fecha}
+                      onChange={e => setTransfer(t => ({ ...t, fecha: e.target.value }))}/>
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label className="label">Descripción (opcional)</label>
+                  <input className="input" placeholder="Ej: Ahorro mensual, pago cuota..."
+                    value={transfer.descripcion}
+                    onChange={e => setTransfer(t => ({ ...t, descripcion: e.target.value }))}/>
+                </div>
+
+                {errTransfer && <div style={S.errorBox}>{errTransfer}</div>}
+
+                <div style={{ display:'flex', gap:'.75rem' }}>
+                  <button type="submit" className="btn btn-primary" disabled={transferring} style={{ flex:1, padding:'.85rem' }}>
+                    {transferring ? 'Procesando...' : '↔️ Transferir'}
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowTransfer(false)}>
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
