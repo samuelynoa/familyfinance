@@ -17,6 +17,7 @@ import Reportes from './pages/Reportes'
 import ConfigPin from './pages/ConfigPin'
 import { Config } from './pages/Placeholders'
 import Eliminados from './pages/Eliminados'
+import GastosRecurrentes from './pages/GastosRecurrentes'
 
 function RequireAuth({ children }) {
   const { firebaseUser, loading } = useAuth()
@@ -51,6 +52,7 @@ export default function AppRoutes() {
         <Route path="config/usuarios"   element={<Usuarios/>}/>
         <Route path="config/seguridad"  element={<ConfigPin/>}/>
         <Route path="config/eliminados" element={<Eliminados/>}/>
+        <Route path="recurrentes" element={<GastosRecurrentes/>}/>
       </Route>
       <Route path="*" element={<Navigate to="/" replace/>}/>
     </Routes>
