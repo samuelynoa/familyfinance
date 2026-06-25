@@ -657,6 +657,7 @@ function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro,
             </select>
           </div>
         ) : (
+          <>
           <div className="field" style={{ marginBottom: 0 }}>
             <label className="label">Tarjeta</label>
             <select className="input" value={form.tarjeta_id} onChange={e => {
@@ -717,6 +718,7 @@ function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro,
               </div>
             )
           })()}
+          </>
         )}
       </div>
 
