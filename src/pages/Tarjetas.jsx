@@ -6,7 +6,10 @@ import { CreditCard, Plus, X, AlertCircle, ChevronDown, ChevronUp, Wallet, Clock
 import ModalConfirmarEliminar from '../components/ModalConfirmarEliminar'
 
 const COLORES = ['#1E3A5F','#B91C1C','#1B5E35','#5B21B6','#7A4800','#0E7490']
-const FORM0   = { nombre:'', banco:'', moneda_rdp:true, moneda_usd:false, limite_rdp:'', limite_usd:'', fecha_corte:'25', color:COLORES[0], visibilidad:'familiar' }
+const FORM0 = {
+  nombre:'', banco:'', tipo_moneda:'RD$', limite_rdp:'', limite_usd:'',
+  fecha_corte:'25', color:COLORES[0], visibilidad:'familiar',
+}
 const PAGO0   = { monto:'', moneda:'RD$', cuenta_id:'', fecha: new Date().toISOString().split('T')[0], descripcion:'' }
 
 export default function Tarjetas() {
@@ -58,9 +61,8 @@ export default function Tarjetas() {
     setForm({
       nombre:      t.nombre,
       banco:       t.banco || '',
-      moneda_rdp:  Number(t.limite || 0) > 0,
-      moneda_usd:  Number(t.limite_usd || 0) > 0,
-      limite_rdp:  t.limite || '',
+      tipo_moneda: t.tipo_moneda || (Number(t.limite_usd||0) > 0 ? 'dual' : t.moneda === 'USD' ? 'USD' : 'RD$'),
+      limite_rdp:  t.limite     || '',
       limite_usd:  t.limite_usd || '',
       fecha_corte: t.fecha_corte || '25',
       color:       t.color || COLORES[0],
@@ -74,37 +76,37 @@ export default function Tarjetas() {
   async function handleAdd(e) {
     e.preventDefault(); setError(''); setSaving(true)
     try {
-      if (!form.moneda_rdp && !form.moneda_usd) throw new Error('Selecciona al menos una moneda')
+      if (!form.nombre) throw new Error('El nombre es obligatorio')
+      const tieneRDP = ['RD$','dual','RD$_USD'].includes(form.tipo_moneda)
+      const tieneUSD = ['USD','dual'].includes(form.tipo_moneda)
+      if (tieneRDP && !form.limite_rdp) throw new Error('Ingresa el límite en RD$')
+      if (tieneUSD && !form.limite_usd) throw new Error('Ingresa el límite en USD')
+
+      const rowBase = {
+        nombre:          form.nombre,
+        banco:           form.banco,
+        limite:          tieneRDP ? form.limite_rdp : '0',
+        saldo_usado:     editando?.saldo_usado     || '0',
+        limite_usd:      tieneUSD ? form.limite_usd : '0',
+        saldo_usado_usd: editando?.saldo_usado_usd || '0',
+        fecha_corte:     form.fecha_corte,
+        moneda:          form.tipo_moneda === 'USD' ? 'USD' : 'RD$',
+        tipo_moneda:     form.tipo_moneda,
+        color:           form.color,
+        visibilidad:     form.visibilidad,
+        owner_id:        editando?.owner_id || perfil?.id || '',
+      }
 
       if (editando) {
         const data = await getSheet('tarjetas_credito')
         const idx  = (data.rows || []).findIndex(r => r.id === editando.id)
         if (idx === -1) throw new Error('Tarjeta no encontrada')
-        await updateRow('tarjetas_credito', idx + 2, {
-          ...editando,
-          nombre:      form.nombre,
-          banco:       form.banco,
-          limite:      form.moneda_rdp ? (form.limite_rdp || editando.limite) : '0',
-          limite_usd:  form.moneda_usd ? (form.limite_usd || editando.limite_usd) : '0',
-          fecha_corte: form.fecha_corte,
-          color:       form.color,
-          visibilidad: form.visibilidad,
-        })
+        await updateRow('tarjetas_credito', idx + 2, { ...editando, ...rowBase })
       } else {
         await appendRow('tarjetas_credito', {
-          id:              `tc_${Date.now()}`,
-          nombre:          form.nombre,
-          banco:           form.banco,
-          limite:          form.moneda_rdp ? form.limite_rdp : '0',
-          saldo_usado:     '0',
-          limite_usd:      form.moneda_usd ? form.limite_usd : '0',
-          saldo_usado_usd: '0',
-          fecha_corte:     form.fecha_corte,
-          moneda:          form.moneda_rdp ? 'RD$' : 'USD',
-          activa:          'true',
-          color:           form.color,
-          visibilidad:     form.visibilidad,
-          owner_id:        perfil?.id || '',
+          id:     `tc_${Date.now()}`,
+          activa: 'true',
+          ...rowBase,
         })
       }
       await load(); setShowForm(false); setForm(FORM0); setEditando(null)
@@ -213,31 +215,42 @@ export default function Tarjetas() {
                 value={form.fecha_corte} onChange={e => setF('fecha_corte', e.target.value)}/>
             </div>
           </div>
+          {/* Tipo de moneda — los 3 casos */}
           <div className="field">
-            <label className="label">Monedas</label>
-            <div style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
+            <label className="label">Tipo de tarjeta</label>
+            <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
               {[
-                { k:'moneda_rdp', lk:'limite_rdp', label:'RD$ Pesos dominicanos', ph:'150,000' },
-                { k:'moneda_usd', lk:'limite_usd', label:'USD Dólares',           ph:'5,000'   },
-              ].map(({ k, lk, label, ph }) => (
-                <div key={k} style={{ border:`1.5px solid ${form[k]?'#2E6DA4':'#E5E7EB'}`, borderRadius:12, padding:'.75rem', background: form[k]?'#F0F7FF':'transparent' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'.75rem', marginBottom: form[k]?'.6rem':0 }}>
-                    <input type="checkbox" id={k} checked={form[k]}
-                      onChange={e => setF(k, e.target.checked)}
-                      style={{ width:18, height:18, cursor:'pointer', accentColor:'#2E6DA4' }}/>
-                    <label htmlFor={k} style={{ fontWeight:600, fontSize:'.9rem', cursor:'pointer', color: form[k]?'#2E6DA4':'#4B5563' }}>{label}</label>
-                  </div>
-                  {form[k] && (
-                    <div>
-                      <label className="label">Límite de crédito</label>
-                      <input className="input" type="number" placeholder={`Ej: ${ph}`}
-                        value={form[lk]} onChange={e => setF(lk, e.target.value)}/>
-                    </div>
-                  )}
-                </div>
+                { v:'RD$',     l:'🇩🇴 Solo pesos (RD$)',                    d:'Todos los consumos en RD$' },
+                { v:'USD',     l:'🇺🇸 Solo dólares (USD)',                   d:'Todos los consumos en USD' },
+                { v:'dual',    l:'💳 Dual RD$ + USD',                       d:'Dos líneas de crédito separadas' },
+                { v:'RD$_USD', l:'💱 RD$ con consumos en USD',              d:'Límite en RD$, acepta USD y convierte con tasa del banco' },
+              ].map(({v,l,d}) => (
+                <button key={v} type="button" onClick={() => setF('tipo_moneda', v)}
+                  style={{ padding:'.7rem .9rem', borderRadius:10, border:'1.5px solid', cursor:'pointer', textAlign:'left',
+                    borderColor: form.tipo_moneda===v?'#2E6DA4':'#E5E7EB',
+                    background:  form.tipo_moneda===v?'#EEF5FC':'var(--color-card,#fff)' }}>
+                  <p style={{ fontWeight:700, fontSize:'.88rem', color:form.tipo_moneda===v?'#2E6DA4':'#1F2937' }}>{l}</p>
+                  <p style={{ fontSize:'.72rem', color:'#9CA3AF', marginTop:'.1rem' }}>{d}</p>
+                </button>
               ))}
             </div>
           </div>
+
+          {/* Límites según tipo */}
+          {['RD$','dual','RD$_USD'].includes(form.tipo_moneda) && (
+            <div className="field">
+              <label className="label">Límite en RD$</label>
+              <input className="input" type="number" placeholder="150,000" step="0.01"
+                value={form.limite_rdp} onChange={e => setF('limite_rdp', e.target.value)}/>
+            </div>
+          )}
+          {['USD','dual'].includes(form.tipo_moneda) && (
+            <div className="field">
+              <label className="label">Límite en USD</label>
+              <input className="input" type="number" placeholder="5,000" step="0.01"
+                value={form.limite_usd} onChange={e => setF('limite_usd', e.target.value)}/>
+            </div>
+          )}
           <div className="field">
             <label className="label">Visibilidad</label>
             <div style={{ display:'flex', gap:'.75rem' }}>
@@ -427,8 +440,10 @@ export default function Tarjetas() {
 
 // ── TarjetaCard ────────────────────────────────────────────────────────────────
 function TarjetaCard({ tarjeta, hideBalances, onPagar, onEditar, onHistorial, onDelete, puedeEditar, puedeEliminar, historialOpen, historial, loadingHist }) {
-  const tieneRDP = Number(tarjeta.limite     || 0) > 0
-  const tieneUSD = Number(tarjeta.limite_usd || 0) > 0
+  const tipo     = tarjeta.tipo_moneda || (Number(tarjeta.limite_usd||0) > 0 ? 'dual' : tarjeta.moneda === 'USD' ? 'USD' : 'RD$')
+  const tieneRDP = ['RD$','dual','RD$_USD'].includes(tipo)
+  const tieneUSD = ['USD','dual'].includes(tipo)
+  const tipoBadge = { 'RD$':'Solo RD$', 'USD':'Solo USD', 'dual':'Dual RD$/USD', 'RD$_USD':'RD$ + USD' }[tipo] || tipo
 
   return (
     <div style={{ borderRadius:16, overflow:'hidden', boxShadow:'0 4px 16px rgba(0,0,0,.12)' }}>
@@ -438,6 +453,7 @@ function TarjetaCard({ tarjeta, hideBalances, onPagar, onEditar, onHistorial, on
           <div>
             <p style={{ fontSize:'.75rem', opacity:.8, marginBottom:'.15rem' }}>{tarjeta.banco}</p>
             <p style={{ fontWeight:700, fontSize:'1.05rem' }}>{tarjeta.nombre}</p>
+            <span style={{ fontSize:'.65rem', background:'rgba(255,255,255,.2)', borderRadius:99, padding:'.1rem .45rem', marginTop:'.2rem', display:'inline-block' }}>{tipoBadge}</span>
           </div>
           <CreditCard size={28} style={{ opacity:.7 }}/>
         </div>

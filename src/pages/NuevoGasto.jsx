@@ -64,19 +64,22 @@ export default function NuevoGasto() {
 
   // Formulario
   const [form, setForm] = useState({
-    fecha:             new Date().toISOString().split('T')[0],
-    monto:             '',
-    moneda:            'RD$',
-    categoria:         '',
-    descripcion:       '',
-    comercio:          '',
-    tipo:              'familiar',
-    usuario_id:        '',
-    cuenta_id:         '',
-    usa_tarjeta:       false,
-    tarjeta_id:        '',
-    cuenta_destino_id: '',
-    beneficiario_id:   '',
+    fecha:              new Date().toISOString().split('T')[0],
+    monto:              '',
+    moneda:             'RD$',
+    categoria:          '',
+    descripcion:        '',
+    comercio:           '',
+    tipo:               'familiar',
+    usuario_id:         '',
+    cuenta_id:          '',
+    usa_tarjeta:        false,
+    tarjeta_id:         '',
+    cuenta_destino_id:  '',
+    beneficiario_id:    '',
+    // Caso C: consumo en USD con tarjeta RD$
+    monto_usd_original: '', // monto original en USD (Caso C)
+    tasa_cambio:        '', // tasa aplicada (manual o futura auto)
   })
 
   const categoriaObj  = CATEGORIAS.find(c => c.label === form.categoria)
@@ -179,8 +182,16 @@ export default function NuevoGasto() {
       if (!form.cuenta_id && !form.usa_tarjeta) throw new Error('Selecciona una cuenta o tarjeta')
       if (esAhorro && !form.cuenta_destino_id) throw new Error('Selecciona la cuenta destino del ahorro')
 
-      const montoRDP = form.moneda === 'RD$' ? monto : null
-      const montoUSD = form.moneda === 'USD' ? monto : null
+      // Caso C: tarjeta RD$ con consumo en USD — convertir a RD$ para guardar
+      const tarjetaSel  = form.usa_tarjeta ? tarjetas.find(t => t.id === form.tarjeta_id) : null
+      const esCasoC     = tarjetaSel?.tipo_moneda === 'RD$_USD' && form.moneda === 'USD'
+      const tasa        = Number(form.tasa_cambio || 0)
+      if (esCasoC && !tasa) throw new Error('Ingresa la tasa de cambio del banco para este consumo en USD')
+
+      // Para Caso C: el monto en RD$ es el que se descuenta (USD × tasa)
+      // Guardamos monto_rdp = equivalente RD$, monto_usd = monto original USD (en monto_usd_original)
+      const montoRDP = esCasoC ? monto * tasa : (form.moneda === 'RD$' ? monto : null)
+      const montoUSD = esCasoC ? null : (form.moneda === 'USD' ? monto : null)
       const confianza = sugerencia?.confianza || 1
 
       // 1a. MODO EDICIÓN — actualizar gasto existente
@@ -210,21 +221,24 @@ export default function NuevoGasto() {
 
       // 1b. MODO NUEVO — registrar gasto
       await addGasto({
-        fecha:             form.fecha,
-        monto_rdp:         montoRDP,
-        monto_usd:         montoUSD,
-        categoria:         form.categoria,
-        descripcion:       form.descripcion,
-        comercio:          form.comercio,
-        tipo:              form.tipo,
-        usuario_id:        form.usuario_id,
-        cuenta_id:         form.usa_tarjeta ? '' : form.cuenta_id,
-        tarjeta_id:        form.usa_tarjeta ? form.tarjeta_id : '',
-        es_ahorro:         esAhorro,
-        cuenta_destino_id: esAhorro ? form.cuenta_destino_id : '',
-        personal_familiar: form.tipo,
+        fecha:              form.fecha,
+        monto_rdp:          montoRDP,
+        monto_usd:          montoUSD,
+        categoria:          form.categoria,
+        descripcion:        form.descripcion,
+        comercio:           form.comercio,
+        tipo:               form.tipo,
+        usuario_id:         form.usuario_id,
+        cuenta_id:          form.usa_tarjeta ? '' : form.cuenta_id,
+        tarjeta_id:         form.usa_tarjeta ? form.tarjeta_id : '',
+        es_ahorro:          esAhorro,
+        cuenta_destino_id:  esAhorro ? form.cuenta_destino_id : '',
+        personal_familiar:  form.tipo,
         confirmado_usuario: true,
-        confianza_ia:      confianza,
+        confianza_ia:       confianza,
+        // Caso C: consumo en USD con tarjeta RD$ — guarda tasa para historial y futura auto-conversión
+        monto_usd_original: form.monto_usd_original || '',
+        tasa_cambio:        form.tasa_cambio || '',
       })
 
       // 2. Descontar de cuenta origen
@@ -236,14 +250,40 @@ export default function NuevoGasto() {
         }
       }
 
-      // 3. Actualizar saldo tarjeta
+      // 3. Actualizar saldo tarjeta según el tipo de moneda
       if (form.usa_tarjeta && form.tarjeta_id) {
         const tarjeta = tarjetas.find(t => t.id === form.tarjeta_id)
         if (tarjeta) {
-          const usado = Number(tarjeta.saldo_usado || 0) + (montoRDP || montoUSD || 0)
-          const data  = await getSheet('tarjetas_credito')
-          const idx   = (data.rows || []).findIndex(r => r.id === form.tarjeta_id)
-          if (idx !== -1) await updateRow('tarjetas_credito', idx + 2, { ...tarjeta, saldo_usado: usado.toFixed(2) })
+          const data = await getSheet('tarjetas_credito')
+          const idx  = (data.rows || []).findIndex(r => r.id === form.tarjeta_id)
+          if (idx !== -1) {
+            const tipo = tarjeta.tipo_moneda || (Number(tarjeta.limite_usd || 0) > 0 ? 'dual' : tarjeta.moneda === 'USD' ? 'USD' : 'RD$')
+
+            if (tipo === 'dual') {
+              // Caso B: líneas separadas — cada moneda descuenta su propio saldo
+              if (montoRDP) {
+                const usado = Number(tarjeta.saldo_usado || 0) + montoRDP
+                await updateRow('tarjetas_credito', idx + 2, { ...tarjeta, saldo_usado: usado.toFixed(2) })
+              } else if (montoUSD) {
+                const usado = Number(tarjeta.saldo_usado_usd || 0) + montoUSD
+                await updateRow('tarjetas_credito', idx + 2, { ...tarjeta, saldo_usado_usd: usado.toFixed(2) })
+              }
+            } else if (tipo === 'RD$_USD') {
+              // Caso C: tarjeta RD$ con consumos en USD — convierte a RD$ usando tasa
+              // El monto ya viene en RD$ (calculado con tasa), solo actualizamos saldo_usado
+              const montoFinal = montoRDP || (montoUSD * Number(form.tasa_cambio || 1))
+              const usado = Number(tarjeta.saldo_usado || 0) + montoFinal
+              await updateRow('tarjetas_credito', idx + 2, { ...tarjeta, saldo_usado: usado.toFixed(2) })
+            } else if (tipo === 'USD') {
+              // Tarjeta solo USD
+              const usado = Number(tarjeta.saldo_usado_usd || 0) + (montoUSD || 0)
+              await updateRow('tarjetas_credito', idx + 2, { ...tarjeta, saldo_usado_usd: usado.toFixed(2) })
+            } else {
+              // Caso A: tarjeta solo RD$ — comportamiento estándar
+              const usado = Number(tarjeta.saldo_usado || 0) + (montoRDP || 0)
+              await updateRow('tarjetas_credito', idx + 2, { ...tarjeta, saldo_usado: usado.toFixed(2) })
+            }
+          }
         }
       }
 
@@ -619,15 +659,64 @@ function FormularioGasto({ form, setForm, cuentas, usuarios, tarjetas, esAhorro,
         ) : (
           <div className="field" style={{ marginBottom: 0 }}>
             <label className="label">Tarjeta</label>
-            <select className="input" value={form.tarjeta_id} onChange={e => setF('tarjeta_id', e.target.value)}>
+            <select className="input" value={form.tarjeta_id} onChange={e => {
+              const t = tarjetas.find(x => x.id === e.target.value)
+              setF('tarjeta_id', e.target.value)
+              // Auto-set moneda según tipo de tarjeta
+              if (t?.tipo_moneda === 'USD') setF('moneda', 'USD')
+              else if (t?.tipo_moneda === 'RD$' || (!t?.tipo_moneda && t?.moneda !== 'USD')) setF('moneda', 'RD$')
+            }}>
               <option value="">Seleccionar tarjeta</option>
-              {tarjetas.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre} — Disponible: {t.moneda} {(Number(t.limite) - Number(t.saldo_usado)).toLocaleString('es-DO')}
-                </option>
-              ))}
+              {tarjetas.map(t => {
+                const tipoLabel = t.tipo_moneda === 'dual' ? '(Dual RD$/USD)' : t.tipo_moneda === 'RD$_USD' ? '(RD$ + consumos USD)' : `(${t.moneda})`
+                const disponible = t.tipo_moneda === 'dual' || t.tipo_moneda === 'USD'
+                  ? `USD ${(Number(t.limite_usd||0) - Number(t.saldo_usado_usd||0)).toLocaleString('es-DO')}`
+                  : `RD$ ${(Number(t.limite||0) - Number(t.saldo_usado||0)).toLocaleString('es-DO')}`
+                return (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre} {tipoLabel} — Disp: {disponible}
+                  </option>
+                )
+              })}
             </select>
           </div>
+
+          {/* Caso C: tarjeta RD$ con consumo en USD — campo de tasa */}
+          {(() => {
+            const tarjSel = tarjetas.find(t => t.id === form.tarjeta_id)
+            const esCasoC = tarjSel?.tipo_moneda === 'RD$_USD' && form.moneda === 'USD'
+            if (!esCasoC) return null
+            const tasaNum  = Number(form.tasa_cambio || 0)
+            const montoNum = Number(form.monto || 0)
+            const equiv    = tasaNum > 0 && montoNum > 0 ? montoNum * tasaNum : 0
+            return (
+              <div style={{ marginTop: '.75rem', background: '#FFFBEB', borderRadius: 10, padding: '.75rem', border: '1px solid #FDE68A' }}>
+                <p style={{ fontSize: '.78rem', fontWeight: 700, color: '#92400E', marginBottom: '.5rem' }}>
+                  💱 Consumo en USD — ingresa la tasa del banco
+                </p>
+                <div className="grid-2">
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label className="label">Tasa de cambio (RD$/USD)</label>
+                    <input className="input" type="number" placeholder="60.50" step="0.01" min="1"
+                      value={form.tasa_cambio}
+                      onChange={e => {
+                        setF('tasa_cambio', e.target.value)
+                        setF('monto_usd_original', form.monto)
+                      }}/>
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label className="label">Equivalente en RD$</label>
+                    <div className="input" style={{ background: '#F9FAFB', fontWeight: 700, color: equiv > 0 ? '#DC2626' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                      {equiv > 0 ? `RD$ ${equiv.toLocaleString('es-DO', { minimumFractionDigits: 2 })}` : '—'}
+                    </div>
+                  </div>
+                </div>
+                <p style={{ fontSize: '.72rem', color: '#92400E', marginTop: '.4rem', opacity: .8 }}>
+                  El saldo de la tarjeta se descontará en RD$ usando esta tasa
+                </p>
+              </div>
+            )
+          })()}
         )}
       </div>
 
