@@ -186,11 +186,46 @@ export async function updatePrestamo(prestamoId, cambios) {
 export async function getPresupuestos({ usuarioId = '', isAdmin = false } = {}) {
   const data = await getSheet('presupuestos')
   return (data.rows || []).filter(r => {
-    if (r.activo === 'false') return false
+    if (r.activo === 'false' || r.eliminado === 'true') return false
     const vis = r.visibilidad || 'familiar'
     if (vis === 'privada') return isAdmin || r.owner_id === usuarioId
     return true
-  })
+  }).map(r => ({
+    ...r,
+    _categorias: (() => {
+      const raw = r.categorias || r.categoria || ''
+      try { return JSON.parse(raw) } catch {
+        return raw.split(',').map(v => v.trim()).filter(Boolean)
+      }
+    })(),
+  }))
+}
+
+/**
+ * Encuentra el presupuesto que aplica a una categoría dada.
+ * Prioridad: específico > general. Si hay ambigüedad devuelve array para que el UI pregunte.
+ */
+export async function presupuestosParaCategoria(categoria, { usuarioId = '', isAdmin = false } = {}) {
+  const todos = await getPresupuestos({ usuarioId, isAdmin })
+  const activos = todos.filter(p => p.activo !== 'false')
+
+  // Específicos que incluyen esta categoría
+  const especificos = activos.filter(p =>
+    p.tipo !== 'general' && p._categorias.includes(categoria)
+  )
+  // Generales que incluyen esta categoría
+  const generales = activos.filter(p =>
+    p.tipo === 'general' && p._categorias.includes(categoria)
+  )
+  // Predeterminado
+  const predeterminado = activos.find(p => p.tipo === 'general' && p.predeterminado === 'true')
+
+  if (especificos.length === 1) return { tipo: 'unico', presupuesto: especificos[0] }
+  if (especificos.length > 1)  return { tipo: 'ambiguo', opciones: especificos }
+  if (generales.length === 1)  return { tipo: 'unico', presupuesto: generales[0] }
+  if (generales.length > 1)   return { tipo: 'ambiguo', opciones: generales }
+  if (predeterminado)          return { tipo: 'predeterminado', presupuesto: predeterminado }
+  return { tipo: 'ninguno' }
 }
 
 // ─── Usuarios ─────────────────────────────────────────────────────────────────
