@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { usePrefs } from '../../context/PrefsContext'
 import BottomNav from './BottomNav'
+import SpeedDial from './SpeedDial'
 import { LogOut, User, Shield, Eye, EyeOff } from 'lucide-react'
 
 const TITLES = {
@@ -286,6 +287,9 @@ export default function AppLayout() {
       }}>
         <Outlet />
       </main>
+
+      {/* Speed Dial — acceso rápido a Gasto, Ingreso, Transferencia, Pago tarjeta */}
+      <SpeedDial />
 
       {/* Bottom Navigation */}
       <BottomNav />
