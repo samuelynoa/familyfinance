@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getCuentas, getGastos, getIngresos } from '../services/sheets'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { TrendingDown, TrendingUp, Wallet, Plus, ChevronRight } from 'lucide-react'
+import { TrendingDown, TrendingUp, Wallet, ChevronRight } from 'lucide-react'
 import { usePrefs } from '../context/PrefsContext'
 import RecurrentesPendientes from '../components/RecurrentesPendientes'
 
@@ -145,9 +145,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      <Link to="/gastos/nuevo" style={styles.fab} aria-label="Nuevo gasto">
-        <Plus size={26} color="#fff"/>
-      </Link>
     </div>
   )
 }
@@ -235,14 +232,5 @@ const styles = {
     width: 40, height: 40, borderRadius: 12, background: 'var(--color-card-hover,#F3F4F6)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: '1.2rem', flexShrink: 0,
-  },
-  fab: {
-    position: 'fixed',
-    bottom: 'calc(4.5rem + env(safe-area-inset-bottom))',
-    right: '1.25rem', width: 56, height: 56,
-    background: 'linear-gradient(135deg, #1E3A5F, #2E6DA4)',
-    borderRadius: '50%', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', boxShadow: '0 6px 20px rgba(30,58,95,.45)',
-    zIndex: 80, textDecoration: 'none',
   },
 }
