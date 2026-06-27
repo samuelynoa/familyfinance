@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale'
 import { TrendingDown, TrendingUp, Wallet, ChevronRight } from 'lucide-react'
 import { usePrefs } from '../context/PrefsContext'
 import RecurrentesPendientes from '../components/RecurrentesPendientes'
+import ResumenSemanal from '../components/ResumenSemanal'
 
 const CATEG_ICONS = {
   'Supermercado': '🛒', 'Combustible': '⛽', 'Educación': '📚',
@@ -114,6 +115,8 @@ export default function Dashboard() {
         getCuentas({ usuarioId: perfil?.id, isAdmin }).then(setCuentas)
         getGastos({ mes }).then(setGastos)
       }}/>
+
+      <ResumenSemanal gastosMes={gastos} hideBalances={hideBalances} />
 
       <div style={styles.section}>
         <div className="flex justify-between items-center" style={{ marginBottom: '.75rem' }}>
