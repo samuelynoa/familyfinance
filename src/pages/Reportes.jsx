@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getGastos, getIngresos, getCuentas, getSheet } from '../services/sheets'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { format } from 'date-fns'
+import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, Download, ChevronLeft, X } from 'lucide-react'
 
 const COLORES = ['#2E6DA4','#1B5E35','#7A4800','#5B21B6','#BE185D','#0E7490','#B91C1C','#D97706','#059669','#7C3AED']
 const ICONS   = { 'Supermercado':'🛒','Combustible':'⛽','Educación':'📚','Salud':'🏥','Entretenimiento':'🎬','Servicios (agua/luz/internet)':'💡','Comidas Fuera de Casa':'🍽️','Suscripciones':'📱','Mesada Familiar':'👨‍👩‍👧','Préstamos':'🏦','Ahorros':'💰','Salidas':'🎉','Ropa':'👗','Hogar':'🏠','Vacaciones':'✈️','Mantenimiento Vehículo':'🚗' }
@@ -18,6 +18,15 @@ export default function Reportes() {
   const [loading,   setLoading]   = useState(true)
   const [tab,       setTab]       = useState('resumen')
   const mes = format(new Date(), 'yyyy-MM')
+
+  // ── Comparativa mensual ──────────────────────────────────────────────────────
+  // Cache de gastos históricos: { 'yyyy-MM': gastos[] }
+  const cacheRef      = useRef({})
+  const [mesesDisp,   setMesesDisp]   = useState([]) // 12 meses disponibles
+  const [mesesSel,    setMesesSel]    = useState([]) // meses seleccionados
+  const [datosMeses,  setDatosMeses]  = useState({}) // { 'yyyy-MM': { total, categorias } }
+  const [loadingComp, setLoadingComp] = useState(false)
+  const [drillMes,    setDrillMes]    = useState(null) // mes en drilldown
 
   useEffect(() => { load() }, [perfil])
 
@@ -40,6 +49,53 @@ export default function Reportes() {
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }
+
+  // Genera los 12 meses recientes al montar
+  useEffect(() => {
+    const hoy   = new Date()
+    const lista = Array.from({ length: 12 }, (_, i) => {
+      const d = subMonths(hoy, i)
+      return format(d, 'yyyy-MM')
+    })
+    setMesesDisp(lista)
+    // Pre-seleccionar los últimos 6
+    setMesesSel(lista.slice(0, 6).reverse())
+  }, [])
+
+  // Carga gastos de meses seleccionados usando caché
+  const cargarMeses = useCallback(async (meses) => {
+    setLoadingComp(true)
+    const nuevos = {}
+    for (const m of meses) {
+      if (cacheRef.current[m]) {
+        nuevos[m] = cacheRef.current[m]
+        continue
+      }
+      try {
+        const g = await getGastos({ mes: m })
+        const i = await getIngresos({ mes: m })
+        const totalGastos   = g.reduce((s, x) => s + (Number(x.monto_rdp) || 0), 0)
+        const totalIngresos = i.filter(x => (x.visibilidad||'privada') === 'familiar')
+                               .reduce((s, x) => s + (Number(x.monto_rdp) || 0), 0)
+        // Agrupar por categoría
+        const cats = {}
+        g.forEach(x => {
+          const cat = x.categoria || 'Otro'
+          cats[cat] = (cats[cat] || 0) + (Number(x.monto_rdp) || 0)
+        })
+        const dato = { total: totalGastos, ingresos: totalIngresos, categorias: cats, count: g.length }
+        cacheRef.current[m] = dato
+        nuevos[m] = dato
+      } catch (e) { console.error('Error cargando', m, e) }
+    }
+    setDatosMeses(prev => ({ ...prev, ...nuevos }))
+    setLoadingComp(false)
+  }, [])
+
+  // Cargar cuando cambian meses seleccionados
+  useEffect(() => {
+    if (mesesSel.length > 0) cargarMeses(mesesSel)
+  }, [mesesSel])
 
   // ── Ingresos separados por visibilidad ──────────────────────────────────────
   const ingresosFamiliares = ingresos.filter(i => (i.visibilidad || 'privada') === 'familiar')
@@ -85,7 +141,12 @@ export default function Reportes() {
 
       {/* Tabs */}
       <div style={S.tabs}>
-        {[{k:'resumen',l:'📊 Resumen'},{k:'categorias',l:'🥧 Categorías'},{k:'patrimonio',l:'🏦 Patrimonio'}].map(t => (
+        {[
+          {k:'resumen',    l:'📊 Resumen'},
+          {k:'categorias', l:'🥧 Categorías'},
+          {k:'patrimonio', l:'🏦 Patrimonio'},
+          {k:'comparativa',l:'📈 Meses'},
+        ].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)} style={{
             ...S.tab,
             background: tab===t.k ? '#2E6DA4' : 'transparent',
@@ -263,6 +324,19 @@ export default function Reportes() {
           )}
         </div>
       )}
+
+      {/* ── Comparativa mensual ──────────────────────────────────────────────── */}
+      {tab === 'comparativa' && (
+        <ComparativaMeses
+          mesesDisp={mesesDisp}
+          mesesSel={mesesSel}
+          setMesesSel={setMesesSel}
+          datosMeses={datosMeses}
+          loading={loadingComp}
+          drillMes={drillMes}
+          setDrillMes={setDrillMes}
+        />
+      )}
     </div>
   )
 }
@@ -299,6 +373,273 @@ function KpiCard({ icon, label, value, color, bg }) {
 }
 
 const fmtN = n => Number(n).toLocaleString('es-DO',{minimumFractionDigits:2})
+
+// ── Comparativa mensual ────────────────────────────────────────────────────────
+function ComparativaMeses({ mesesDisp, mesesSel, setMesesSel, datosMeses, loading, drillMes, setDrillMes }) {
+  const ICONS = { 'Supermercado':'🛒','Combustible':'⛽','Educación':'📚','Salud':'🏥','Entretenimiento':'🎬','Servicios (agua/luz/internet)':'💡','Comidas Fuera de Casa':'🍽️','Suscripciones':'📱','Mesada Familiar':'👨‍👩‍👧','Préstamos':'🏦','Ahorros':'💰','Salidas':'🎉','Ropa':'👗','Hogar':'🏠','Vacaciones':'✈️','Mantenimiento Vehículo':'🚗' }
+
+  // Datos de los meses seleccionados en orden cronológico
+  const mesOrden   = [...mesesSel].sort()
+  const maxTotal   = Math.max(...mesOrden.map(m => datosMeses[m]?.total || 0), 1)
+
+  function toggleMes(m) {
+    setMesesSel(prev =>
+      prev.includes(m)
+        ? prev.length > 1 ? prev.filter(x => x !== m) : prev // mínimo 1
+        : [...prev, m]
+    )
+  }
+
+  function exportCSV() {
+    const header = ['Mes', 'Gastos RD$', 'Ingresos RD$', 'Ahorro RD$']
+    const rows   = mesOrden.map(m => {
+      const d = datosMeses[m] || {}
+      return [
+        format(new Date(m + '-15'), 'MMMM yyyy', { locale: es }),
+        (d.total || 0).toFixed(2),
+        (d.ingresos || 0).toFixed(2),
+        ((d.ingresos || 0) - (d.total || 0)).toFixed(2),
+      ]
+    })
+    const csv  = [header, ...rows].map(r => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a'); a.href = url
+    a.download = `gastos-${mesOrden[0]}-${mesOrden[mesOrden.length-1]}.csv`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
+  // Drilldown: categorías de un mes específico
+  if (drillMes) {
+    const d    = datosMeses[drillMes] || {}
+    const cats = Object.entries(d.categorias || {}).sort((a,b)=>b[1]-a[1])
+    const maxC = cats[0]?.[1] || 1
+    const label = format(new Date(drillMes + '-15'), 'MMMM yyyy', { locale: es })
+    return (
+      <div>
+        <button onClick={() => setDrillMes(null)}
+          style={{ display:'flex', alignItems:'center', gap:'.4rem', background:'none', border:'none',
+            cursor:'pointer', color:'#2E6DA4', fontWeight:700, fontSize:'.875rem', marginBottom:'1rem', padding:0 }}>
+          <ChevronLeft size={18}/> Volver
+        </button>
+        <h3 style={{ fontWeight:700, fontSize:'1rem', marginBottom:'.25rem', textTransform:'capitalize' }}>{label}</h3>
+        <p style={{ fontSize:'.78rem', color:'#9CA3AF', marginBottom:'1rem' }}>
+          Total: RD$ {fmtN(d.total || 0)} · {d.count || 0} gastos
+        </p>
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          {cats.length === 0
+            ? <p style={{ padding:'2rem', textAlign:'center', color:'#9CA3AF' }}>Sin gastos este mes</p>
+            : cats.map(([cat, tot], i) => (
+              <div key={cat} style={{ padding:'.75rem 1rem',
+                borderBottom: i < cats.length-1 ? '1px solid var(--color-border-secondary,#F3F4F6)' : 'none' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.3rem' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+                    <span style={{ fontSize:'1.05rem' }}>{ICONS[cat]||'💸'}</span>
+                    <span style={{ fontWeight:600, fontSize:'.875rem' }}>{cat}</span>
+                  </div>
+                  <div style={{ textAlign:'right' }}>
+                    <p style={{ fontWeight:700, color:'#DC2626', fontSize:'.875rem' }}>RD$ {fmtN(tot)}</p>
+                    <p style={{ fontSize:'.7rem', color:'#9CA3AF' }}>{d.total>0?((tot/d.total)*100).toFixed(0):0}%</p>
+                  </div>
+                </div>
+                <div style={{ height:5, background:'var(--color-card-hover,#F3F4F6)', borderRadius:99 }}>
+                  <div style={{ height:'100%', width:`${(tot/maxC)*100}%`, background:'#2E6DA4', borderRadius:99 }}/>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {/* Selector de meses */}
+      <div style={{ marginBottom:'1rem' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.5rem' }}>
+          <p style={{ fontSize:'.75rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'.05em' }}>
+            Selecciona los meses a comparar
+          </p>
+          <button onClick={exportCSV}
+            style={{ display:'flex', alignItems:'center', gap:'.3rem', background:'none', border:'1px solid #E5E7EB',
+              borderRadius:8, padding:'.3rem .6rem', cursor:'pointer', color:'#4B5563', fontSize:'.75rem', fontWeight:600 }}>
+            <Download size={13}/> CSV
+          </button>
+        </div>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'.4rem' }}>
+          {mesesDisp.map(m => {
+            const sel    = mesesSel.includes(m)
+            const label  = format(new Date(m+'-15'), 'MMM yy', { locale: es })
+            const tieneD = !!datosMeses[m]
+            return (
+              <button key={m} onClick={() => toggleMes(m)}
+                style={{ padding:'.3rem .65rem', borderRadius:99, border:'1.5px solid', cursor:'pointer',
+                  fontSize:'.75rem', fontWeight:700,
+                  borderColor: sel ? '#2E6DA4' : '#E5E7EB',
+                  background:  sel ? '#2E6DA4' : 'var(--color-card,#fff)',
+                  color:       sel ? '#fff'    : '#6B7280',
+                  opacity:     loading && !tieneD && sel ? .6 : 1,
+                }}>
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {loading && (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF', fontSize:'.875rem' }}>
+          <div className="spinner" style={{ margin:'0 auto .75rem' }}/>
+          Cargando datos históricos...
+        </div>
+      )}
+
+      {/* Resumen comparativo */}
+      {mesOrden.length >= 2 && !loading && (
+        <div style={{ marginBottom:'1rem' }}>
+          {(() => {
+            const ultimo    = datosMeses[mesOrden[mesOrden.length-1]]?.total || 0
+            const penultimo = datosMeses[mesOrden[mesOrden.length-2]]?.total || 0
+            const delta     = ultimo - penultimo
+            const pct       = penultimo > 0 ? (delta/penultimo)*100 : 0
+            const mejoro    = delta <= 0
+            return (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+                background: mejoro?'#D4EDDA':'#FEE2E2', borderRadius:10, padding:'.7rem 1rem', marginBottom:'.75rem' }}>
+                <p style={{ fontWeight:700, fontSize:'.875rem', color: mejoro?'#1B5E35':'#DC2626' }}>
+                  {mejoro ? '📉 Mes más reciente menor' : '📈 Mes más reciente mayor'}
+                </p>
+                <div style={{ textAlign:'right' }}>
+                  <p style={{ fontWeight:800, color: mejoro?'#1B5E35':'#DC2626' }}>
+                    {delta>0?'+':''}RD$ {fmtN(Math.abs(delta))}
+                  </p>
+                  <p style={{ fontSize:'.72rem', color: mejoro?'#1B5E35':'#DC2626' }}>
+                    {Math.abs(pct).toFixed(1)}% vs mes anterior
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* Gráfico de barras */}
+      {mesOrden.length > 0 && (
+        <div className="card" style={{ padding:'1rem', marginBottom:'1rem' }}>
+          <p style={{ fontSize:'.72rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase',
+            letterSpacing:'.05em', marginBottom:'.85rem' }}>
+            Gastos mensuales — toca un mes para ver detalle
+          </p>
+          {/* Barras SVG — sin dependencias */}
+          <div style={{ display:'flex', alignItems:'flex-end', gap: mesOrden.length > 6 ? '.3rem' : '.5rem', height:140, paddingBottom:'.1rem' }}>
+            {mesOrden.map((m, i) => {
+              const d       = datosMeses[m] || {}
+              const gastoT  = d.total    || 0
+              const ingresT = d.ingresos || 0
+              const hG      = maxTotal > 0 ? Math.max((gastoT/maxTotal)*110, gastoT>0?6:0) : 0
+              const hI      = maxTotal > 0 ? Math.max((ingresT/maxTotal)*110, ingresT>0?4:0) : 0
+              const esMesAct = m === mes
+              const label   = format(new Date(m+'-15'), mesOrden.length>6?'MMM':'MMM yy', { locale:es })
+              return (
+                <div key={m} onClick={() => setDrillMes(m)}
+                  style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center',
+                    gap:'.2rem', cursor:'pointer', minWidth:0 }}>
+                  {/* Valor encima */}
+                  {gastoT > 0 && (
+                    <span style={{ fontSize:'.6rem', fontWeight:700, color:'#1E3A5F',
+                      whiteSpace:'nowrap', overflow:'hidden', maxWidth:'100%', textOverflow:'ellipsis' }}>
+                      {gastoT>=1000?`${(gastoT/1000).toFixed(0)}k`:`${Math.round(gastoT)}`}
+                    </span>
+                  )}
+                  {/* Barras agrupadas (gasto + ingreso) */}
+                  <div style={{ display:'flex', alignItems:'flex-end', gap:2, flex:1, width:'100%', justifyContent:'center' }}>
+                    {/* Barra gasto */}
+                    <div style={{ width:'45%', height:`${hG}px`, minHeight:gastoT>0?4:0,
+                      background: esMesAct?'#DC2626':'#2E6DA4',
+                      borderRadius:'4px 4px 0 0', transition:'height .3s ease',
+                      opacity: esMesAct?1:.8 }}/>
+                    {/* Barra ingreso (verde, más delgada) */}
+                    {ingresT > 0 && (
+                      <div style={{ width:'35%', height:`${hI}px`, minHeight:4,
+                        background:'#1B5E35', borderRadius:'4px 4px 0 0',
+                        transition:'height .3s ease', opacity:.75 }}/>
+                    )}
+                  </div>
+                  {/* Label */}
+                  <span style={{ fontSize:'.6rem', fontWeight: esMesAct?700:400, textTransform:'capitalize',
+                    color: esMesAct?'#1E3A5F':'#9CA3AF', whiteSpace:'nowrap', textAlign:'center',
+                    overflow:'hidden', maxWidth:'100%', textOverflow:'ellipsis' }}>
+                    {label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          {/* Leyenda */}
+          <div style={{ display:'flex', gap:'1rem', marginTop:'.75rem', justifyContent:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'.3rem' }}>
+              <div style={{ width:10, height:10, borderRadius:3, background:'#2E6DA4' }}/>
+              <span style={{ fontSize:'.7rem', color:'#9CA3AF' }}>Gastos</span>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:'.3rem' }}>
+              <div style={{ width:10, height:10, borderRadius:3, background:'#1B5E35' }}/>
+              <span style={{ fontSize:'.7rem', color:'#9CA3AF' }}>Ingresos familiares</span>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:'.3rem' }}>
+              <div style={{ width:10, height:10, borderRadius:3, background:'#DC2626' }}/>
+              <span style={{ fontSize:'.7rem', color:'#9CA3AF' }}>Mes actual</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabla resumen */}
+      {mesOrden.length > 0 && (
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr',
+            background:'var(--color-card-hover,#F3F4F6)', padding:'.6rem .85rem',
+            fontSize:'.7rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase' }}>
+            <span>Mes</span><span style={{textAlign:'right'}}>Gastos</span>
+            <span style={{textAlign:'right'}}>Ingresos</span><span style={{textAlign:'right'}}>Balance</span>
+          </div>
+          {mesOrden.map((m, i) => {
+            const d       = datosMeses[m] || {}
+            const gastoT  = d.total    || 0
+            const ingresT = d.ingresos || 0
+            const bal     = ingresT - gastoT
+            const esMesAct = m === mes
+            return (
+              <div key={m} onClick={() => setDrillMes(m)}
+                style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr',
+                  padding:'.7rem .85rem', cursor:'pointer',
+                  borderTop: '1px solid var(--color-border-secondary,#F3F4F6)',
+                  background: esMesAct?'#EEF5FC':'transparent',
+                  transition:'background .15s',
+                }}>
+                <span style={{ fontWeight: esMesAct?700:500, fontSize:'.82rem', textTransform:'capitalize',
+                  color: esMesAct?'#2E6DA4':'var(--color-text,#1F2937)' }}>
+                  {format(new Date(m+'-15'),'MMM yy',{locale:es})}
+                  {esMesAct && <span style={{fontSize:'.65rem',color:'#2E6DA4',marginLeft:'.25rem'}}>●</span>}
+                </span>
+                <span style={{ textAlign:'right', fontWeight:600, fontSize:'.82rem', color:'#DC2626' }}>
+                  {gastoT>0?`${(gastoT/1000).toFixed(1)}k`:'—'}
+                </span>
+                <span style={{ textAlign:'right', fontWeight:600, fontSize:'.82rem', color:'#1B5E35' }}>
+                  {ingresT>0?`${(ingresT/1000).toFixed(1)}k`:'—'}
+                </span>
+                <span style={{ textAlign:'right', fontWeight:700, fontSize:'.82rem',
+                  color: bal>=0?'#1B5E35':'#DC2626' }}>
+                  {bal!==0?(bal>0?'+':'')+`${(bal/1000).toFixed(1)}k`:'—'}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 const S = {
   tabs: { display:'flex',background:'var(--color-card-hover,#F3F4F6)',borderRadius:12,padding:'.25rem',marginBottom:'1rem',gap:'.25rem' },
   tab:  { flex:1,padding:'.55rem .4rem',borderRadius:9,border:'none',cursor:'pointer',fontSize:'.78rem',transition:'all .15s' },
