@@ -20,13 +20,13 @@ export default function Reportes() {
   const mes = format(new Date(), 'yyyy-MM')
 
   // ── Comparativa mensual ──────────────────────────────────────────────────────
-  // Cache de gastos históricos: { 'yyyy-MM': gastos[] }
   const cacheRef      = useRef({})
-  const [mesesDisp,   setMesesDisp]   = useState([]) // 12 meses disponibles
-  const [mesesSel,    setMesesSel]    = useState([]) // meses seleccionados
-  const [datosMeses,  setDatosMeses]  = useState({}) // { 'yyyy-MM': { total, categorias } }
+  const compInitRef   = useRef(false) // solo inicializar una vez
+  const [mesesDisp,   setMesesDisp]   = useState([])
+  const [mesesSel,    setMesesSel]    = useState([])
+  const [datosMeses,  setDatosMeses]  = useState({})
   const [loadingComp, setLoadingComp] = useState(false)
-  const [drillMes,    setDrillMes]    = useState(null) // mes en drilldown
+  const [drillMes,    setDrillMes]    = useState(null)
 
   useEffect(() => { load() }, [perfil])
 
@@ -50,34 +50,35 @@ export default function Reportes() {
     finally { setLoading(false) }
   }
 
-  // Genera los 12 meses recientes al montar
-  useEffect(() => {
+  // Genera los 12 meses recientes — solo al activar el tab por primera vez
+  const initComparativa = useCallback(async () => {
+    if (compInitRef.current) return
+    compInitRef.current = true
+
     const hoy   = new Date()
-    const lista = Array.from({ length: 12 }, (_, i) => {
-      const d = subMonths(hoy, i)
-      return format(d, 'yyyy-MM')
-    })
+    const lista = Array.from({ length: 12 }, (_, i) =>
+      format(subMonths(hoy, i), 'yyyy-MM')
+    )
+    const sel = lista.slice(0, 6).reverse() // últimos 6, orden cronológico
     setMesesDisp(lista)
-    // Pre-seleccionar los últimos 6
-    setMesesSel(lista.slice(0, 6).reverse())
+    setMesesSel(sel)
+    await cargarMeses(sel)
   }, [])
 
-  // Carga gastos de meses seleccionados usando caché
+  // Carga secuencial para no sobrecargar el API
   const cargarMeses = useCallback(async (meses) => {
     setLoadingComp(true)
-    const nuevos = {}
     for (const m of meses) {
-      if (cacheRef.current[m]) {
-        nuevos[m] = cacheRef.current[m]
-        continue
-      }
+      if (cacheRef.current[m]) continue
       try {
-        const g = await getGastos({ mes: m })
-        const i = await getIngresos({ mes: m })
+        const [g, i] = await Promise.all([
+          getGastos({ mes: m }),
+          getIngresos({ mes: m }),
+        ])
         const totalGastos   = g.reduce((s, x) => s + (Number(x.monto_rdp) || 0), 0)
-        const totalIngresos = i.filter(x => (x.visibilidad||'privada') === 'familiar')
-                               .reduce((s, x) => s + (Number(x.monto_rdp) || 0), 0)
-        // Agrupar por categoría
+        const totalIngresos = i
+          .filter(x => (x.visibilidad || 'privada') === 'familiar')
+          .reduce((s, x) => s + (Number(x.monto_rdp) || 0), 0)
         const cats = {}
         g.forEach(x => {
           const cat = x.categoria || 'Otro'
@@ -85,16 +86,17 @@ export default function Reportes() {
         })
         const dato = { total: totalGastos, ingresos: totalIngresos, categorias: cats, count: g.length }
         cacheRef.current[m] = dato
-        nuevos[m] = dato
+        // Actualizar estado progresivamente para que aparezcan las barras mientras carga
+        setDatosMeses(prev => ({ ...prev, [m]: dato }))
       } catch (e) { console.error('Error cargando', m, e) }
     }
-    setDatosMeses(prev => ({ ...prev, ...nuevos }))
     setLoadingComp(false)
   }, [])
 
-  // Cargar cuando cambian meses seleccionados
+  // Cuando el usuario agrega un mes no cacheado
   useEffect(() => {
-    if (mesesSel.length > 0) cargarMeses(mesesSel)
+    const sinCache = mesesSel.filter(m => !cacheRef.current[m])
+    if (sinCache.length > 0) cargarMeses(sinCache)
   }, [mesesSel])
 
   // ── Ingresos separados por visibilidad ──────────────────────────────────────
@@ -147,7 +149,10 @@ export default function Reportes() {
           {k:'patrimonio', l:'🏦 Patrimonio'},
           {k:'comparativa',l:'📈 Meses'},
         ].map(t => (
-          <button key={t.k} onClick={() => setTab(t.k)} style={{
+          <button key={t.k} onClick={() => {
+            setTab(t.k)
+            if (t.k === 'comparativa') initComparativa()
+          }} style={{
             ...S.tab,
             background: tab===t.k ? '#2E6DA4' : 'transparent',
             color:      tab===t.k ? '#fff'    : '#4B5563',
@@ -335,6 +340,7 @@ export default function Reportes() {
           loading={loadingComp}
           drillMes={drillMes}
           setDrillMes={setDrillMes}
+          mesActual={mes}
         />
       )}
     </div>
@@ -375,7 +381,7 @@ function KpiCard({ icon, label, value, color, bg }) {
 const fmtN = n => Number(n).toLocaleString('es-DO',{minimumFractionDigits:2})
 
 // ── Comparativa mensual ────────────────────────────────────────────────────────
-function ComparativaMeses({ mesesDisp, mesesSel, setMesesSel, datosMeses, loading, drillMes, setDrillMes }) {
+function ComparativaMeses({ mesesDisp, mesesSel, setMesesSel, datosMeses, loading, drillMes, setDrillMes, mesActual }) {
   const ICONS = { 'Supermercado':'🛒','Combustible':'⛽','Educación':'📚','Salud':'🏥','Entretenimiento':'🎬','Servicios (agua/luz/internet)':'💡','Comidas Fuera de Casa':'🍽️','Suscripciones':'📱','Mesada Familiar':'👨‍👩‍👧','Préstamos':'🏦','Ahorros':'💰','Salidas':'🎉','Ropa':'👗','Hogar':'🏠','Vacaciones':'✈️','Mantenimiento Vehículo':'🚗' }
 
   // Datos de los meses seleccionados en orden cronológico
@@ -539,7 +545,7 @@ function ComparativaMeses({ mesesDisp, mesesSel, setMesesSel, datosMeses, loadin
               const ingresT = d.ingresos || 0
               const hG      = maxTotal > 0 ? Math.max((gastoT/maxTotal)*110, gastoT>0?6:0) : 0
               const hI      = maxTotal > 0 ? Math.max((ingresT/maxTotal)*110, ingresT>0?4:0) : 0
-              const esMesAct = m === mes
+              const esMesAct = m === mesActual
               const label   = format(new Date(m+'-15'), mesOrden.length>6?'MMM':'MMM yy', { locale:es })
               return (
                 <div key={m} onClick={() => setDrillMes(m)}
@@ -608,7 +614,7 @@ function ComparativaMeses({ mesesDisp, mesesSel, setMesesSel, datosMeses, loadin
             const gastoT  = d.total    || 0
             const ingresT = d.ingresos || 0
             const bal     = ingresT - gastoT
-            const esMesAct = m === mes
+            const esMesAct = m === mesActual
             return (
               <div key={m} onClick={() => setDrillMes(m)}
                 style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr',
